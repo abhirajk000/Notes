@@ -16,9 +16,13 @@ type Config struct {
 	JWTExpiry    time.Duration
 	// CORSOrigins is the comma-separated list of allowed frontend origins.
 	// Example: "https://my-app.vercel.app,https://notes.example.com"
-	CORSOrigins  []string
-	CookieDomain string
-	Production   bool
+	CORSOrigins     []string
+	CookieDomain    string
+	Production      bool
+	// AllowedUsername restricts login/register to a single owner (private instance).
+	AllowedUsername string
+	// MaxUsers caps total accounts (default 1 = private single-user vault).
+	MaxUsers        int
 }
 
 // Load reads all required environment variables and returns a validated Config.
@@ -59,14 +63,23 @@ func Load() (*Config, error) {
 
 	env := os.Getenv("APP_ENV")
 
+	maxUsers := 1
+	if raw := os.Getenv("MAX_USERS"); raw != "" {
+		if _, err := fmt.Sscanf(raw, "%d", &maxUsers); err != nil || maxUsers < 1 {
+			return nil, fmt.Errorf("MAX_USERS must be a positive integer")
+		}
+	}
+
 	return &Config{
-		Port:         getEnv("PORT", "4000"),
-		DatabaseURL:  dbURL,
-		JWTSecret:    []byte(jwtSecret),
-		JWTExpiry:    jwtExpiry,
-		CORSOrigins:  origins,
-		CookieDomain: os.Getenv("COOKIE_DOMAIN"),
-		Production:   env == "production",
+		Port:            getEnv("PORT", "4000"),
+		DatabaseURL:     dbURL,
+		JWTSecret:       []byte(jwtSecret),
+		JWTExpiry:       jwtExpiry,
+		CORSOrigins:     origins,
+		CookieDomain:    os.Getenv("COOKIE_DOMAIN"),
+		Production:      env == "production",
+		AllowedUsername: os.Getenv("ALLOWED_USERNAME"),
+		MaxUsers:        maxUsers,
 	}, nil
 }
 

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"database/sql"
@@ -35,11 +36,13 @@ const (
 // AuthHandler groups the HTTP handlers for authentication endpoints.
 // Dependencies are constructor-injected for testability.
 type AuthHandler struct {
-	db           *sql.DB
-	jwtSecret    []byte
-	jwtExpiry    time.Duration
-	cookieDomain string
-	production   bool
+	db              *sql.DB
+	jwtSecret       []byte
+	jwtExpiry       time.Duration
+	cookieDomain    string
+	production      bool
+	allowedUsername string
+	maxUsers        int
 }
 
 func NewAuthHandler(
@@ -48,13 +51,17 @@ func NewAuthHandler(
 	jwtExpiry time.Duration,
 	cookieDomain string,
 	production bool,
+	allowedUsername string,
+	maxUsers int,
 ) *AuthHandler {
 	return &AuthHandler{
-		db:           db,
-		jwtSecret:    jwtSecret,
-		jwtExpiry:    jwtExpiry,
-		cookieDomain: cookieDomain,
-		production:   production,
+		db:              db,
+		jwtSecret:       jwtSecret,
+		jwtExpiry:       jwtExpiry,
+		cookieDomain:    cookieDomain,
+		production:      production,
+		allowedUsername: allowedUsername,
+		maxUsers:        maxUsers,
 	}
 }
 
@@ -86,9 +93,25 @@ type loginInput struct {
 	Password string `json:"password"`
 }
 
+// isOwnerUsername returns true when the username matches the configured owner.
+// When ALLOWED_USERNAME is unset, all usernames are permitted (dev mode).
+func (h *AuthHandler) isOwnerUsername(username string) bool {
+	if h.allowedUsername == "" {
+		return true
+	}
+	return strings.EqualFold(username, h.allowedUsername)
+}
+
+func (h *AuthHandler) countUsers(ctx context.Context) (int, error) {
+	var count int
+	err := h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+	return count, err
+}
+
 // ── Handlers ──────────────────────────────────────────────────────
 
 // Register — POST /api/auth/register
+// Private instance: only ALLOWED_USERNAME may register, and only while under MAX_USERS.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var in registerInput
 	if err := readJSON(w, r, &in); err != nil {
@@ -101,10 +124,26 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.isOwnerUsername(in.Username) {
+		sendError(w, "Registration is disabled for this private instance.", http.StatusForbidden)
+		return
+	}
+
+	userCount, err := h.countUsers(r.Context())
+	if err != nil {
+		log.Printf("[auth] register count users: %v", err)
+		sendError(w, "Internal server error.", http.StatusInternalServerError)
+		return
+	}
+	if userCount >= h.maxUsers {
+		sendError(w, "Registration is closed. This is a private single-user vault.", http.StatusForbidden)
+		return
+	}
+
 	// Check uniqueness before the expensive hash
 	var exists bool
-	err := h.db.QueryRowContext(r.Context(),
-		"SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)", in.Username,
+	err = h.db.QueryRowContext(r.Context(),
+		"SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(username) = LOWER($1))", in.Username,
 	).Scan(&exists)
 	if err != nil {
 		log.Printf("[auth] register uniqueness check: %v", err)
@@ -163,11 +202,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 // Login — POST /api/auth/login
+// Private instance: only ALLOWED_USERNAME may authenticate.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var in loginInput
 	if err := readJSON(w, r, &in); err != nil {
-		// Generic message: never reveal which field failed to prevent enumeration
 		sendError(w, "Invalid credentials.", http.StatusUnauthorized)
+		return
+	}
+
+	if !h.isOwnerUsername(in.Username) {
+		sendError(w, "Invalid username or password.", http.StatusUnauthorized)
 		return
 	}
 
@@ -182,7 +226,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var u userRow
 	err := h.db.QueryRowContext(r.Context(),
 		`SELECT id, username, password_hash, encryption_salt, created_at
-         FROM users WHERE username = $1 LIMIT 1`,
+         FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
 		in.Username,
 	).Scan(&u.id, &u.username, &u.passwordHash, &u.encryptionSalt, &u.createdAt)
 
@@ -236,6 +280,20 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 	sendSuccess(w, map[string]any{"message": "Logged out successfully."})
+}
+
+// Status — GET /api/auth/status (public)
+// Tells the frontend whether registration is still open.
+func (h *AuthHandler) Status(w http.ResponseWriter, r *http.Request) {
+	count, err := h.countUsers(r.Context())
+	if err != nil {
+		sendError(w, "Internal server error.", http.StatusInternalServerError)
+		return
+	}
+	sendSuccess(w, map[string]any{
+		"registrationOpen": count < h.maxUsers,
+		"maxUsers":         h.maxUsers,
+	})
 }
 
 // Me — GET /api/auth/me

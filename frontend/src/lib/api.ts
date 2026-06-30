@@ -14,7 +14,15 @@
 
 import type { ServerNote } from '../types/notes';
 
-const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+function resolveApiBase(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+  if (configured) return configured;
+  // Production: same-origin /api/* proxied by Vercel or nginx to the Go backend
+  if (typeof window !== 'undefined') return '';
+  return 'http://localhost:4000';
+}
+
+const BASE = resolveApiBase();
 
 // ── Error class ────────────────────────────────────────────────────
 
@@ -115,6 +123,9 @@ export const auth = {
 
   me: () =>
     request<AuthResponse>('/api/auth/me'),
+
+  status: () =>
+    request<{ registrationOpen: boolean; maxUsers: number }>('/api/auth/status'),
 };
 
 // ── Notes endpoints ────────────────────────────────────────────────

@@ -37,6 +37,7 @@ func main() {
 	// ── Handlers ───────────────────────────────────────────────
 	authH := handler.NewAuthHandler(
 		pool, cfg.JWTSecret, cfg.JWTExpiry, cfg.CookieDomain, cfg.Production,
+		cfg.AllowedUsername, cfg.MaxUsers,
 	)
 	notesH := handler.NewNotesHandler(pool)
 
@@ -71,6 +72,7 @@ func main() {
 	// Auth routes (no session required)
 	mux.Handle("POST /api/auth/register", chain(http.HandlerFunc(authH.Register), corsM))
 	mux.Handle("POST /api/auth/login", chain(http.HandlerFunc(authH.Login), corsM))
+	mux.Handle("GET /api/auth/status", chain(http.HandlerFunc(authH.Status), corsM))
 	mux.Handle("POST /api/auth/logout", authChain(authH.Logout))
 	mux.Handle("GET /api/auth/me", authChain(authH.Me))
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { auth, ApiError } from '../../lib/api';
@@ -10,11 +10,22 @@ type Mode = 'login' | 'register';
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('login');
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState('Abhiraj');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+
+  useEffect(() => {
+    auth
+      .status()
+      .then((s) => {
+        setRegistrationOpen(s.registrationOpen);
+        if (s.registrationOpen) setMode('register');
+      })
+      .catch(() => setRegistrationOpen(false));
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -62,19 +73,28 @@ export default function LoginPage() {
 
         <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl shadow-black/5 dark:shadow-black/30 border border-gray-200/60 dark:border-zinc-700/60 overflow-hidden">
           <div className="flex border-b border-gray-100 dark:border-zinc-700/60">
-            {(['login', 'register'] as Mode[]).map((m) => (
+            <button
+              onClick={() => { setMode('login'); setError(null); }}
+              className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                mode === 'login'
+                  ? 'text-amber-600 dark:text-amber-400 border-b-2 border-amber-500'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Sign In
+            </button>
+            {registrationOpen && (
               <button
-                key={m}
-                onClick={() => { setMode(m); setError(null); }}
+                onClick={() => { setMode('register'); setError(null); }}
                 className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  mode === m
+                  mode === 'register'
                     ? 'text-amber-600 dark:text-amber-400 border-b-2 border-amber-500'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
-                {m === 'login' ? 'Sign In' : 'Create Account'}
+                Create Account
               </button>
-            ))}
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
