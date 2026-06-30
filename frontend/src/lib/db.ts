@@ -10,27 +10,22 @@
 
 import Dexie, { type Table } from 'dexie';
 import type { LocalNote, SyncStatus } from '../types/notes';
+import type { LocalVaultCard } from '../types/vault';
 
 class NotesDatabase extends Dexie {
-  notes!: Table<LocalNote, string>; // primary key type = string (UUID)
+  notes!: Table<LocalNote, string>;
+  cards!: Table<LocalVaultCard, string>;
 
   constructor() {
     super('SecureNotesDB');
 
-    /**
-     * Version 1 — initial schema.
-     *
-     * Index strategy:
-     *  - `id`           → primary key (auto-indexed)
-     *  - `sync_status`  → bulk queries for pending sync operations
-     *  - `updated_at`   → ordered listing + LWW conflict resolution
-     *  - `is_pinned`    → filter/sort by pinned status
-     *
-     * Fields not listed here (encrypted_title, encrypted_content, iv)
-     * are stored but NOT indexed — you cannot search ciphertext anyway.
-     */
     this.version(1).stores({
       notes: 'id, sync_status, updated_at, is_pinned',
+    });
+
+    this.version(2).stores({
+      notes: 'id, sync_status, updated_at, is_pinned',
+      cards: 'id, updated_at',
     });
   }
 }
@@ -100,4 +95,8 @@ export async function upsertFromServer(serverNote: Omit<LocalNote, 'sync_status'
 /** Clears the entire local database (call on logout). */
 export async function clearAllNotes(): Promise<void> {
   await db.notes.clear();
+}
+
+export async function clearAllCards(): Promise<void> {
+  await db.cards.clear();
 }

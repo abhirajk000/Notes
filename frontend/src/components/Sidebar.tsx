@@ -13,13 +13,18 @@ import {
   CheckCircle2,
   AlertCircle,
   CloudOff,
+  CreditCard,
 } from 'lucide-react';
 import type { SyncStatus } from '../lib/syncManager';
+
+export type AppSection = 'notes' | 'vault';
 
 interface SidebarProps {
   username: string;
   totalNotes: number;
   pinnedNotes: number;
+  totalCards: number;
+  activeSection: AppSection;
   syncStatus: SyncStatus;
   onSyncNow: () => void;
   /** @deprecated kept for compat — use syncStatus.phase instead */
@@ -27,6 +32,7 @@ interface SidebarProps {
   isDark: boolean;
   isBiometricEnabled: boolean;
   activeFolder: 'all' | 'pinned';
+  onSectionSelect: (section: AppSection) => void;
   onFolderSelect: (folder: 'all' | 'pinned') => void;
   onSearch: (query: string) => void;
   onToggleDark: () => void;
@@ -39,11 +45,14 @@ export function Sidebar({
   username,
   totalNotes,
   pinnedNotes,
+  totalCards,
+  activeSection,
   syncStatus,
   onSyncNow,
   isDark,
   isBiometricEnabled,
   activeFolder,
+  onSectionSelect,
   onFolderSelect,
   onSearch,
   onToggleDark,
@@ -71,51 +80,75 @@ export function Sidebar({
       </div>
 
       {/* ── New Note button ──────────────────────────────────── */}
-      <div className="px-3 mb-3">
-        <button
-          onClick={onNewNote}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/70 dark:bg-zinc-700/60 hover:bg-white dark:hover:bg-zinc-700 text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors shadow-sm"
-        >
-          <NotebookPen size={15} className="text-amber-500" />
-          New Note
-          <kbd className="ml-auto text-[10px] text-gray-400 dark:text-gray-500 font-mono bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
-            ⌘N
-          </kbd>
-        </button>
-      </div>
+      {activeSection === 'notes' && (
+        <div className="px-3 mb-3">
+          <button
+            onClick={onNewNote}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/70 dark:bg-zinc-700/60 hover:bg-white dark:hover:bg-zinc-700 text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors shadow-sm"
+          >
+            <NotebookPen size={15} className="text-amber-500" />
+            New Note
+            <kbd className="ml-auto text-[10px] text-gray-400 dark:text-gray-500 font-mono bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+              ⌘N
+            </kbd>
+          </button>
+        </div>
+      )}
 
-      {/* ── Folder list ─────────────────────────────────────── */}
+      {/* ── Section + folder list ─────────────────────────────── */}
       <nav className="px-2 flex flex-col gap-0.5">
         <FolderItem
           icon={<NotebookPen size={15} />}
-          label="All Notes"
+          label="Notes"
           count={totalNotes}
-          active={activeFolder === 'all'}
-          onClick={() => onFolderSelect('all')}
+          active={activeSection === 'notes'}
+          onClick={() => onSectionSelect('notes')}
         />
+        {activeSection === 'notes' && (
+          <>
+            <FolderItem
+              icon={<Pin size={15} />}
+              label="Pinned"
+              count={pinnedNotes}
+              active={activeFolder === 'pinned'}
+              onClick={() => onFolderSelect('pinned')}
+              indent
+            />
+            <FolderItem
+              icon={<NotebookPen size={15} />}
+              label="All Notes"
+              count={totalNotes}
+              active={activeFolder === 'all'}
+              onClick={() => onFolderSelect('all')}
+              indent
+            />
+          </>
+        )}
         <FolderItem
-          icon={<Pin size={15} />}
-          label="Pinned"
-          count={pinnedNotes}
-          active={activeFolder === 'pinned'}
-          onClick={() => onFolderSelect('pinned')}
+          icon={<CreditCard size={15} />}
+          label="Card Vault"
+          count={totalCards}
+          active={activeSection === 'vault'}
+          onClick={() => onSectionSelect('vault')}
         />
       </nav>
 
       <div className="flex-1" />
 
       {/* ── Search ──────────────────────────────────────────── */}
-      <div className="px-3 pb-2">
-        <label className="flex items-center gap-2 px-2.5 py-1.5 bg-white/60 dark:bg-zinc-700/50 rounded-lg border border-gray-200 dark:border-zinc-600/50">
-          <Search size={13} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
-          <input
-            type="search"
-            placeholder="Search notes…"
-            onChange={(e) => onSearch(e.target.value)}
-            className="w-full bg-transparent text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 outline-none"
-          />
-        </label>
-      </div>
+      {activeSection === 'notes' && (
+        <div className="px-3 pb-2">
+          <label className="flex items-center gap-2 px-2.5 py-1.5 bg-white/60 dark:bg-zinc-700/50 rounded-lg border border-gray-200 dark:border-zinc-600/50">
+            <Search size={13} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+            <input
+              type="search"
+              placeholder="Search notes…"
+              onChange={(e) => onSearch(e.target.value)}
+              className="w-full bg-transparent text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 outline-none"
+            />
+          </label>
+        </div>
+      )}
 
       {/* ── Bottom actions ───────────────────────────────────── */}
       <div className="px-2 pb-4 flex flex-col gap-0.5 border-t border-gray-200 dark:border-zinc-700/60 pt-2">
@@ -186,18 +219,21 @@ function FolderItem({
   count,
   active,
   onClick,
+  indent = false,
 }: {
   icon: React.ReactNode;
   label: string;
   count: number;
   active: boolean;
   onClick: () => void;
+  indent?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       className={`
-        w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-colors
+        w-full flex items-center gap-2.5 py-1.5 rounded-lg text-sm transition-colors
+        ${indent ? 'pl-7 pr-2.5' : 'px-2.5'}
         ${
           active
             ? 'bg-amber-400/25 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium'

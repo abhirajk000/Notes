@@ -21,7 +21,15 @@ import {
   markForDeletion,
   clearAllNotes,
 } from '../../lib/db';
+import {
+  loadPlainVaultCards,
+  saveVaultCard,
+  deleteVaultCard,
+  clearAllVaultCards,
+} from '../../lib/vaultCards';
 import type { PlainNote, LocalNote } from '../../types/notes';
+import type { PlainVaultCard, CreditCardData } from '../../types/vault';
+import { EMPTY_CARD } from '../../types/vault';
 
 // ── Session shape persisted in localStorage ────────────────────
 interface StoredSession {
@@ -48,8 +56,11 @@ export default function NotesPage() {
   const [appState, setAppState] = useState<AppState>('checking');
   const [session, setSession] = useState<StoredSession | null>(null);
   const [notes, setNotes] = useState<PlainNote[]>([]);
+  const [cards, setCards] = useState<PlainVaultCard[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingCard, setIsSavingCard] = useState(false);
   const syncStatusHook = useSyncStatus();
   const [isDark, setIsDark] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -86,7 +97,9 @@ export default function NotesPage() {
       void worker.destroy().catch(() => {});
     } catch {}
     setNotes([]);
+    setCards([]);
     setSelectedNoteId(null);
+    setSelectedCardId(null);
     setAppState('locked');
   }, [appState]);
 
@@ -132,6 +145,15 @@ export default function NotesPage() {
     );
   }, []);
 
+  const loadCards = useCallback(async () => {
+    const decrypted = await loadPlainVaultCards();
+    setCards(
+      decrypted.sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+      ),
+    );
+  }, []);
+
   // ── Sync manager — reload notes after inbound sync ───────────
   useEffect(() => {
     if (appState !== 'unlocked') return;
@@ -154,7 +176,7 @@ export default function NotesPage() {
       try {
         const crypto = CryptoWorkerClient.getInstance();
         await crypto.deriveKey(password, session.encryption_salt);
-        await loadNotes();
+        await Promise.all([loadNotes(), loadCards()]);
         setAppState('unlocked');
         void SyncManager.getInstance().sync();
       } catch (err) {
@@ -164,7 +186,7 @@ export default function NotesPage() {
         throw err;
       }
     },
-    [session, loadNotes],
+    [session, loadNotes, loadCards],
   );
 
   // ── Biometric unlock ─────────────────────────────────────────
@@ -251,6 +273,53 @@ export default function NotesPage() {
     await handleSaveNote({ title: note.title, content: note.content, is_pinned: !note.is_pinned });
   }, [notes, selectedNoteId, handleSaveNote]);
 
+  // ── Vault: new card ──────────────────────────────────────────
+  const handleAddCard = useCallback(() => {
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    const placeholder: PlainVaultCard = {
+      id,
+      ...EMPTY_CARD,
+      updated_at: now,
+      created_at: now,
+    };
+    setCards((prev) => [placeholder, ...prev]);
+    setSelectedCardId(id);
+  }, []);
+
+  // ── Vault: save card ───────────────────────────────────────────
+  const handleSaveCard = useCallback(
+    async (data: CreditCardData) => {
+      if (!selectedCardId) return;
+      setIsSavingCard(true);
+
+      try {
+        await saveVaultCard({ id: selectedCardId, ...data });
+        const now = new Date().toISOString();
+
+        setCards((prev) => {
+          const updated = prev.map((c) =>
+            c.id === selectedCardId ? { ...c, ...data, updated_at: now } : c,
+          );
+          return updated.sort(
+            (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+          );
+        });
+      } finally {
+        setIsSavingCard(false);
+      }
+    },
+    [selectedCardId],
+  );
+
+  // ── Vault: delete card ───────────────────────────────────────
+  const handleDeleteCard = useCallback(async () => {
+    if (!selectedCardId) return;
+    await deleteVaultCard(selectedCardId);
+    setCards((prev) => prev.filter((c) => c.id !== selectedCardId));
+    setSelectedCardId(null);
+  }, [selectedCardId]);
+
   // ── Dark mode toggle ─────────────────────────────────────────
   const handleToggleDark = useCallback(() => {
     setIsDark((d) => {
@@ -269,7 +338,7 @@ export default function NotesPage() {
 
     try { CryptoWorkerClient.getInstance().destroy().catch(() => {}); } catch {}
     SyncManager.getInstance().destroy();
-    await clearAllNotes();
+    await Promise.all([clearAllNotes(), clearAllVaultCards()]);
     localStorage.removeItem(SESSION_KEY);
     router.replace('/login');
   }, [router]);
@@ -304,11 +373,14 @@ export default function NotesPage() {
         username={session?.username ?? ''}
         notes={notes}
         selectedNoteId={selectedNoteId}
+        cards={cards}
+        selectedCardId={selectedCardId}
         isLoading={appState === 'unlocking'}
         isSyncing={syncStatusHook.phase !== 'idle' && syncStatusHook.phase !== 'error'}
         syncStatus={syncStatusHook}
         onSyncNow={syncStatusHook.syncNow}
         isSaving={isSaving}
+        isSavingCard={isSavingCard}
         isDark={isDark}
         isBiometricEnabled={webAuthn.isEnabled}
         onSelectNote={setSelectedNoteId}
@@ -316,6 +388,10 @@ export default function NotesPage() {
         onSaveNote={handleSaveNote}
         onDeleteNote={handleDeleteNote}
         onTogglePin={handleTogglePin}
+        onSelectCard={setSelectedCardId}
+        onAddCard={handleAddCard}
+        onSaveCard={handleSaveCard}
+        onDeleteCard={handleDeleteCard}
         onToggleDark={handleToggleDark}
         onLock={handleLock}
         onLogout={handleLogout}
