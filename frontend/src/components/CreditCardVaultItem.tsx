@@ -46,9 +46,9 @@ export function CreditCardVaultItem({
   };
 
   return (
-    <div className="relative w-full max-w-md h-56 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-slate-800 tracking-wide select-none group font-sans transition-all duration-300 hover:shadow-2xl hover:border-slate-700">
+    <div className="relative w-full max-w-md h-56 bg-gradient-to-br from-violet-900 via-purple-950 to-violet-950 rounded-3xl p-6 text-white shadow-soft-lg border border-violet-800/50 tracking-wide select-none group transition-all duration-300 hover:shadow-glow hover:border-violet-700/60">
       <div className="flex justify-between items-start mb-8">
-        <div className="text-sm font-semibold uppercase tracking-widest text-indigo-300 drop-shadow-sm">
+        <div className="text-sm font-semibold uppercase tracking-widest text-violet-300 drop-shadow-sm">
           {cardName || 'Secure Payment Card'}
         </div>
         <button
@@ -67,7 +67,7 @@ export function CreditCardVaultItem({
           tabIndex={0}
           onClick={() => handleCopy(cardNumber.replace(/\s+/g, ''), 'number')}
           onKeyDown={(e) => e.key === 'Enter' && handleCopy(cardNumber.replace(/\s+/g, ''), 'number')}
-          className="inline-block text-xl md:text-2xl font-mono tracking-wider cursor-pointer hover:text-indigo-200 transition-colors py-1 group/field"
+          className="inline-block text-xl md:text-2xl font-mono tracking-wider cursor-pointer hover:text-violet-200 transition-colors py-1 group/field"
         >
           {formatCardNumber(cardNumber)}
           <span className="opacity-0 group-hover/field:opacity-40 ml-2 transition-opacity inline-block align-middle">
@@ -91,7 +91,7 @@ export function CreditCardVaultItem({
             onKeyDown={(e) => e.key === 'Enter' && handleCopy(cardHolder, 'holder')}
           >
             <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Card Holder</div>
-            <div className="text-sm font-medium tracking-wide font-mono hover:text-indigo-200 transition-colors">
+            <div className="text-sm font-medium tracking-wide font-mono hover:text-violet-200 transition-colors">
               {cardHolder || 'VALUED CUSTOMER'}
             </div>
             {copiedField === 'holder' && (
@@ -109,7 +109,7 @@ export function CreditCardVaultItem({
             onKeyDown={(e) => e.key === 'Enter' && handleCopy(expiry, 'expiry')}
           >
             <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Expires</div>
-            <div className="text-sm font-medium font-mono hover:text-indigo-200 transition-colors">
+            <div className="text-sm font-medium font-mono hover:text-violet-200 transition-colors">
               {expiry || 'MM/YY'}
             </div>
             {copiedField === 'expiry' && (
@@ -128,7 +128,7 @@ export function CreditCardVaultItem({
           onKeyDown={(e) => e.key === 'Enter' && handleCopy(cvv, 'cvv')}
         >
           <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">CVV</div>
-          <div className="text-sm font-medium font-mono hover:text-indigo-200 transition-colors">
+          <div className="text-sm font-medium font-mono hover:text-violet-200 transition-colors">
             {isMasked ? '•••' : cvv}
           </div>
           {copiedField === 'cvv' && (

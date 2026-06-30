@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Trash2, Save } from 'lucide-react';
+import { Trash2, Save, CreditCard } from 'lucide-react';
 import { CreditCardVaultItem } from './CreditCardVaultItem';
 import type { CreditCardData, PlainVaultCard } from '../types/vault';
 import { EMPTY_CARD } from '../types/vault';
@@ -40,11 +40,11 @@ export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorPro
 
   if (!card) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center select-none">
-        <div className="w-14 h-14 rounded-3xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-1">
-          <span className="text-2xl">💳</span>
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center select-none bg-editor dark:bg-editor-dark">
+        <div className="soft-icon-box w-16 h-16">
+          <CreditCard size={28} className="text-accent/70" />
         </div>
-        <p className="text-base font-medium text-gray-400 dark:text-gray-500">
+        <p className="text-base font-medium text-gray-500 dark:text-gray-400">
           Select a card or add a new one
         </p>
       </div>
@@ -52,8 +52,8 @@ export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorPro
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#1c1c1e]">
-      <div className="flex items-center gap-2 px-6 py-2.5 border-b border-gray-100 dark:border-zinc-700/60 flex-shrink-0">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-editor dark:bg-editor-dark">
+      <div className="flex items-center gap-2 px-6 py-3 border-b border-violet-100/60 dark:border-violet-900/20 flex-shrink-0">
         <span className="text-xs text-gray-400 dark:text-gray-500 mr-auto">
           {isSaving ? 'Encrypting & saving…' : isDirty ? 'Unsaved changes' : 'Saved locally (encrypted)'}
         </span>
@@ -61,7 +61,7 @@ export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorPro
           type="button"
           onClick={() => onSave(draft)}
           disabled={isSaving || !draft.cardName.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-accent hover:bg-accent-light text-white disabled:opacity-50 transition-all shadow-soft"
         >
           <Save size={14} />
           Save
@@ -69,7 +69,7 @@ export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorPro
         <button
           type="button"
           onClick={onDelete}
-          className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+          className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
           title="Delete card"
         >
           <Trash2 size={15} />
@@ -118,7 +118,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full px-3.5 py-2.5 rounded-xl text-sm bg-gray-50 dark:bg-zinc-800/60 border border-gray-200 dark:border-zinc-600/60 text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition-all ${mono ? 'font-mono' : ''}`}
+        className={`w-full px-3.5 py-2.5 rounded-2xl text-sm bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/30 text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none focus:ring-2 focus:ring-accent/10 focus:border-accent/40 transition-all ${mono ? 'font-mono' : ''}`}
       />
     </label>
   );

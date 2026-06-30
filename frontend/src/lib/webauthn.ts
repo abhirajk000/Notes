@@ -26,7 +26,7 @@ import type {
 } from '../types/webauthn';
 
 const RP_ID = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-const RP_NAME = 'Secure Notes';
+const RP_NAME = 'Notes';
 const STORAGE_KEY = 'sn_biometric_cred';
 
 // Fixed PRF input — same value on every call → same output from secure enclave

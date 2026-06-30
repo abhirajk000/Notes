@@ -2,15 +2,24 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { AppIcon } from '../../components/AppIcon';
 import { auth, ApiError } from '../../lib/api';
 
-type Mode = 'login' | 'register';
+const USERNAME = 'Abhiraj';
+
+function formatApiError(err: ApiError): string {
+  if (err.details && typeof err.details === 'object' && err.details !== null) {
+    const fields = err.details as Record<string, string>;
+    const messages = Object.values(fields);
+    if (messages.length > 0) return messages.join(' ');
+  }
+  return err.message;
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>('login');
-  const [username, setUsername] = useState('Abhiraj');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,9 +43,9 @@ export default function LoginPage() {
 
     try {
       const result =
-        mode === 'login'
-          ? await auth.login(username, password)
-          : await auth.register(username, password);
+        mode === 'register'
+          ? await auth.register(USERNAME, password)
+          : await auth.login(USERNAME, password);
 
       localStorage.setItem(
         'sn_session',
@@ -49,7 +58,13 @@ export default function LoginPage() {
       router.replace('/notes');
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        if (err.status === 403 || err.status === 404) {
+          setError(
+            'API not reachable. Check that api.abhiraj.xyz is running.',
+          );
+        } else {
+          setError(formatApiError(err));
+        }
       } else {
         setError('Could not connect to the server. Check your network.');
       }
@@ -58,119 +73,135 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className="min-h-dvh flex items-center justify-center p-4 bg-[#f5f5f5] dark:bg-zinc-900">
-      <div className="w-full max-w-sm animate-slide-up">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-xl shadow-amber-500/30 mb-4">
-            <Lock size={30} className="text-white" strokeWidth={2.5} />
-          </div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-50">Secure Notes</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            End-to-end encrypted, zero-knowledge
-          </p>
-        </div>
+  const isRegister = mode === 'register';
 
-        <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl shadow-black/5 dark:shadow-black/30 border border-gray-200/60 dark:border-zinc-700/60 overflow-hidden">
-          <div className="flex border-b border-gray-100 dark:border-zinc-700/60">
-            <button
-              onClick={() => { setMode('login'); setError(null); }}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                mode === 'login'
-                  ? 'text-amber-600 dark:text-amber-400 border-b-2 border-amber-500'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-            >
-              Sign In
-            </button>
-            {registrationOpen && (
+  return (
+    <div className="min-h-dvh flex items-center justify-center p-6 login-bg">
+      <div className="w-full max-w-[400px] animate-slide-up">
+        <div className="soft-card px-8 pt-10 pb-8 shadow-soft-lg">
+          <div className="flex flex-col items-center text-center">
+            <AppIcon size={56} className="mb-5 shadow-soft-md" />
+
+            <h1 className="text-2xl font-bold text-brand-deep dark:text-gray-50 tracking-tight">
+              Notes
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 mb-6">
+              {isRegister
+                ? 'Create your vault with a master password (min. 12 characters).'
+                : 'Unlock your encrypted notes.'}
+            </p>
+          </div>
+
+          {!isRegister && registrationOpen && (
+            <div className="flex gap-1 p-1 mb-6 -mt-2 bg-violet-50 dark:bg-violet-950/30 rounded-2xl">
               <button
+                type="button"
+                onClick={() => { setMode('login'); setError(null); }}
+                className="flex-1 py-2 text-sm font-medium text-white bg-accent rounded-xl shadow-soft transition-all"
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
                 onClick={() => { setMode('register'); setError(null); }}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  mode === 'register'
-                    ? 'text-amber-600 dark:text-amber-400 border-b-2 border-amber-500'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
+                className="flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-xl transition-colors"
               >
                 Create Account
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+          {isRegister && !registrationOpen && (
+            <div className="flex gap-1 p-1 mb-6 -mt-2 bg-violet-50 dark:bg-violet-950/30 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(null); }}
+                className="flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-xl transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('register'); setError(null); }}
+                className="flex-1 py-2 text-sm font-medium text-white bg-accent rounded-xl shadow-soft transition-all"
+              >
+                Create Account
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
+              <div className="flex items-start gap-2 p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded-2xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
                 <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                 {error}
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-                Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="your_username"
-                autoComplete="username"
-                autoFocus
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-gray-50 dark:bg-zinc-700/60 border border-gray-200 dark:border-zinc-600/60 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-zinc-500 outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 dark:focus:border-amber-500 transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-                Master Password
+              <label
+                htmlFor="master-password"
+                className="block text-[11px] font-bold tracking-[0.12em] text-accent mb-2 uppercase"
+              >
+                {isRegister ? 'Master Password' : 'Password'}
               </label>
               <div className="relative">
                 <input
+                  id="master-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === 'register' ? 'Min. 12 characters' : '••••••••••••'}
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  placeholder={isRegister ? 'At least 12 characters' : '••••••••••••'}
+                  autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  autoFocus
                   required
-                  className="w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm bg-gray-50 dark:bg-zinc-700/60 border border-gray-200 dark:border-zinc-600/60 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-zinc-500 outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 dark:focus:border-amber-500 transition-all"
+                  minLength={isRegister ? 12 : undefined}
+                  className="soft-input text-center text-base tracking-wide pr-11"
                 />
                 <button
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
                 >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {mode === 'register' && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
-                  This password encrypts your notes locally. It is never sent to the server.
+              {isRegister && (
+                <p className="text-xs text-gray-400 mt-2 leading-snug text-center">
+                  Encrypts your notes locally. Never sent to the server.
                 </p>
               )}
             </div>
 
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-2.5 rounded-xl font-semibold text-sm text-white bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm shadow-amber-500/30 mt-1"
+              disabled={isLoading || (isRegister && password.length > 0 && password.length < 12)}
+              className="soft-btn-primary w-full py-3.5 text-[15px] font-semibold shadow-glow"
             >
               {isLoading ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  {mode === 'login' ? 'Signing in…' : 'Creating account…'}
+                  {isRegister ? 'Creating…' : 'Unlocking…'}
                 </>
+              ) : isRegister ? (
+                'Create Account'
               ) : (
-                mode === 'login' ? 'Sign In' : 'Create Account'
+                'Unlock'
               )}
             </button>
+
+            {!isRegister && registrationOpen && (
+              <button
+                type="button"
+                onClick={() => { setMode('register'); setError(null); }}
+                className="text-sm text-accent dark:text-accent-light hover:underline"
+              >
+                First time? Create your vault
+              </button>
+            )}
           </form>
         </div>
-
-        <p className="text-center text-xs text-gray-400 dark:text-gray-600 mt-5 leading-relaxed">
-          All notes encrypted with AES-256-GCM. Zero plaintext reaches the server.
-        </p>
       </div>
     </div>
   );

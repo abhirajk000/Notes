@@ -1,5 +1,5 @@
-# Replace api.notes.example.com with your VPS domain
-api.notes.example.com {
+# Secure Notes Go API — replace with your VPS subdomain
+api.abhiraj.xyz {
     reverse_proxy 127.0.0.1:4000
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"

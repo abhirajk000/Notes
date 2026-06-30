@@ -8,6 +8,8 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
+import { Loader2 } from 'lucide-react';
+import { AppIcon } from '../../components/AppIcon';
 import { AppShell } from '../../components/AppShell';
 import { LockScreen } from '../../components/LockScreen';
 import { useAutoLock } from '../../hooks/useAutoLock';
@@ -415,12 +417,13 @@ export default function NotesPage() {
 
 function LoadingScreen() {
   return (
-    <div className="h-dvh w-dvw flex items-center justify-center bg-white dark:bg-zinc-900">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 animate-pulse">
-          <span className="text-xl">🔐</span>
+    <div className="h-dvh w-dvw flex items-center justify-center bg-surface dark:bg-surface-dark">
+      <div className="flex flex-col items-center gap-4">
+        <AppIcon size={56} className="animate-soft-pulse shadow-soft-md" />
+        <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500">
+          <Loader2 size={14} className="animate-spin text-accent" />
+          Loading…
         </div>
-        <p className="text-sm text-gray-400 dark:text-gray-500">Loading…</p>
       </div>
     </div>
   );

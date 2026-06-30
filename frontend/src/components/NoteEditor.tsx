@@ -6,7 +6,7 @@ import {
   useState,
   useCallback,
 } from 'react';
-import { Pin, Trash2, Clock } from 'lucide-react';
+import { Pin, Trash2, Clock, FileText } from 'lucide-react';
 import type { PlainNote } from '../types/notes';
 
 interface NoteEditorProps {
@@ -105,18 +105,20 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin }: No
   // ── Empty state ──────────────────────────────────────────────
   if (!note) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center select-none">
-        <div className="w-14 h-14 rounded-3xl bg-gray-100 dark:bg-zinc-700/60 flex items-center justify-center mb-1">
-          <span className="text-2xl">📝</span>
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center select-none bg-editor dark:bg-editor-dark">
+        <div className="soft-icon-box w-16 h-16">
+          <FileText size={28} className="text-accent/70" />
         </div>
-        <p className="text-base font-medium text-gray-400 dark:text-gray-500">
-          Select a note to edit
-        </p>
-        <p className="text-sm text-gray-300 dark:text-gray-600">
-          or press{' '}
-          <kbd className="text-xs bg-gray-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded font-mono">⌘N</kbd>{' '}
-          to create one
-        </p>
+        <div>
+          <p className="text-base font-medium text-gray-500 dark:text-gray-400">
+            Select a note to edit
+          </p>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1.5">
+            or press{' '}
+            <kbd className="text-xs bg-violet-50 dark:bg-violet-950/40 px-1.5 py-0.5 rounded-lg font-mono">⌘N</kbd>{' '}
+            to create one
+          </p>
+        </div>
       </div>
     );
   }
@@ -124,36 +126,33 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin }: No
   const wordCount = countWords(content);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#1c1c1e]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-editor dark:bg-editor-dark">
       {/* ── Toolbar ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 px-6 py-2.5 border-b border-gray-100 dark:border-zinc-700/60 flex-shrink-0">
-        {/* Status */}
+      <div className="flex items-center gap-1 px-6 py-3 border-b border-violet-100/60 dark:border-violet-900/20 flex-shrink-0">
         <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 mr-auto">
           <Clock size={12} />
           {isSaving ? (
-            <span className="text-amber-500">Saving…</span>
+            <span className="text-accent">Saving…</span>
           ) : (
             <span>{formatLastSaved(note.updated_at)}</span>
           )}
-          <span className="mx-1 text-gray-200 dark:text-zinc-700">·</span>
+          <span className="mx-1 text-violet-200 dark:text-violet-800">·</span>
           <span>{wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}</span>
         </div>
 
-        {/* Pin toggle */}
         <ToolbarButton
           onClick={onTogglePin}
           active={note.is_pinned}
           title={note.is_pinned ? 'Unpin note' : 'Pin note'}
-          activeClass="text-amber-500 fill-amber-400"
+          activeClass="text-accent bg-accent-muted dark:bg-accent-muted-dark"
         >
-          <Pin size={15} className={note.is_pinned ? 'fill-amber-400' : ''} />
+          <Pin size={15} className={note.is_pinned ? 'fill-violet-400' : ''} />
         </ToolbarButton>
 
-        {/* Delete */}
         <ToolbarButton
           onClick={onDelete}
           title="Delete note"
-          activeClass="text-red-500"
+          activeClass="text-red-500 bg-red-50 dark:bg-red-950/30"
         >
           <Trash2 size={15} />
         </ToolbarButton>
@@ -172,7 +171,7 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin }: No
         />
 
         {/* Divider */}
-        <div className="w-full h-px bg-gray-100 dark:bg-zinc-700/60 mb-6" />
+        <div className="w-full h-px bg-violet-100/80 dark:bg-violet-900/20 mb-6" />
 
         {/* Content */}
         <textarea
@@ -209,11 +208,11 @@ function ToolbarButton({
       onClick={onClick}
       title={title}
       className={`
-        p-1.5 rounded-md transition-colors
+        p-2 rounded-xl transition-all duration-200
         ${
           active
             ? activeClass
-            : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700'
+            : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-50 dark:hover:bg-violet-950/30'
         }
       `}
     >

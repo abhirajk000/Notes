@@ -6,19 +6,16 @@ import {
   useRef,
   FormEvent,
 } from 'react';
-import { Fingerprint, Eye, EyeOff, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Fingerprint, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { AppIcon } from './AppIcon';
 
 interface LockScreenProps {
   username: string;
   isBiometricEnabled: boolean;
   isBiometricSupported: boolean;
-  /** Called once the correct password (or biometrically-recovered password) is confirmed */
   onUnlock: (password: string) => Promise<void>;
-  /** Triggered when user clicks "Biometric Unlock" button */
   onBiometricUnlock: () => Promise<string>;
-  /** Navigates to the login page and clears all local data */
   onSignOut: () => void;
-  /** Whether this is the first time (app just loaded, not a re-lock) */
   isVisible: boolean;
 }
 
@@ -43,14 +40,12 @@ export function LockScreen({
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus password field when switching to password mode
   useEffect(() => {
     if (mode === 'password') {
       setTimeout(() => passwordRef.current?.focus(), 100);
     }
   }, [mode]);
 
-  // Auto-trigger biometric on first render if enabled
   useEffect(() => {
     if (isVisible && isBiometricEnabled && isBiometricSupported) {
       void handleBiometricUnlock();
@@ -63,7 +58,6 @@ export function LockScreen({
     setUnlockState('idle');
   };
 
-  // ── Biometric unlock ─────────────────────────────────────────
   const handleBiometricUnlock = async () => {
     setUnlockState('biometric-pending');
     setError(null);
@@ -75,11 +69,10 @@ export function LockScreen({
       const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
       setError(msg);
       setUnlockState('error');
-      setMode('password'); // graceful fallback
+      setMode('password');
     }
   };
 
-  // ── Password unlock ──────────────────────────────────────────
   const handlePasswordUnlock = async (e: FormEvent) => {
     e.preventDefault();
     if (!password.trim()) return;
@@ -105,23 +98,19 @@ export function LockScreen({
     <div
       className={`
         fixed inset-0 z-50 flex items-center justify-center p-4
-        bg-white/70 dark:bg-zinc-900/80 lock-backdrop
+        bg-violet-50/60 dark:bg-violet-950/40 lock-backdrop
         transition-opacity duration-300
         ${isVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
       `}
     >
       <div className="animate-slide-up w-full max-w-sm">
-        <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden border border-gray-200/60 dark:border-zinc-700/60">
+        <div className="soft-card overflow-hidden shadow-soft-lg">
 
-          {/* ── Header ────────────────────────────────────────── */}
-          <div className="flex flex-col items-center pt-10 pb-6 px-8 border-b border-gray-100 dark:border-zinc-700/60">
-            {/* App icon */}
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 mb-4">
-              <Lock size={28} className="text-white" strokeWidth={2.5} />
-            </div>
+          <div className="flex flex-col items-center pt-10 pb-6 px-8 border-b border-violet-100/60 dark:border-violet-900/20">
+            <AppIcon size={64} className="mb-5 shadow-soft-md" />
 
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50 mb-1">
-              Secure Notes
+              Notes
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Locked for{' '}
@@ -129,18 +118,14 @@ export function LockScreen({
             </p>
           </div>
 
-          {/* ── Body ──────────────────────────────────────────── */}
           <div className="px-8 py-6">
-
-            {/* Error banner */}
             {error && (
-              <div className="flex items-start gap-2.5 mb-5 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
+              <div className="flex items-start gap-2.5 mb-5 p-3.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-2xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
                 <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                 <p className="leading-snug">{error}</p>
               </div>
             )}
 
-            {/* ── Biometric mode ───────────────────────────────── */}
             {mode === 'biometric' && (
               <div className="flex flex-col items-center gap-4">
                 <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
@@ -152,18 +137,18 @@ export function LockScreen({
                   disabled={isBusy}
                   className={`
                     relative w-20 h-20 rounded-full
-                    bg-amber-50 dark:bg-amber-900/20
-                    border-2 border-amber-300 dark:border-amber-600
+                    bg-accent-muted dark:bg-accent-muted-dark
+                    border-2 border-violet-200 dark:border-violet-700
                     flex items-center justify-center
                     transition-transform active:scale-95
                     disabled:opacity-60 disabled:cursor-not-allowed
-                    ${!isBusy ? 'biometric-pulse hover:bg-amber-100 dark:hover:bg-amber-900/30' : ''}
+                    ${!isBusy ? 'biometric-pulse hover:bg-violet-100 dark:hover:bg-violet-900/40' : ''}
                   `}
                 >
                   {unlockState === 'biometric-pending' ? (
-                    <Loader2 size={30} className="text-amber-500 animate-spin" />
+                    <Loader2 size={30} className="text-accent animate-spin" />
                   ) : (
-                    <Fingerprint size={34} className="text-amber-500 dark:text-amber-400" />
+                    <Fingerprint size={34} className="text-accent dark:text-accent-light" />
                   )}
                 </button>
 
@@ -175,18 +160,17 @@ export function LockScreen({
 
                 <button
                   onClick={() => { setMode('password'); clearError(); }}
-                  className="text-sm text-amber-600 dark:text-amber-400 hover:underline mt-1"
+                  className="text-sm text-accent dark:text-accent-light hover:underline mt-1"
                 >
                   Use password instead
                 </button>
               </div>
             )}
 
-            {/* ── Password mode ────────────────────────────────── */}
             {mode === 'password' && (
               <form onSubmit={handlePasswordUnlock} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                  <label className="block text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 mb-2 uppercase">
                     Master Password
                   </label>
                   <div className="relative">
@@ -198,22 +182,13 @@ export function LockScreen({
                       placeholder="Enter your master password"
                       autoComplete="current-password"
                       disabled={isBusy}
-                      className="
-                        w-full px-3.5 py-2.5 pr-10 rounded-xl text-sm
-                        bg-gray-50 dark:bg-zinc-700/60
-                        border border-gray-200 dark:border-zinc-600/60
-                        text-gray-900 dark:text-gray-100
-                        placeholder-gray-400 dark:placeholder-zinc-500
-                        outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400
-                        dark:focus:border-amber-500 transition-all
-                        disabled:opacity-60
-                      "
+                      className="soft-input pr-10 disabled:opacity-60"
                     />
                     <button
                       type="button"
                       tabIndex={-1}
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
                     >
                       {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
@@ -223,13 +198,7 @@ export function LockScreen({
                 <button
                   type="submit"
                   disabled={!password.trim() || isBusy}
-                  className="
-                    w-full py-2.5 rounded-xl font-medium text-sm text-white
-                    bg-amber-500 hover:bg-amber-400 active:bg-amber-600
-                    disabled:opacity-50 disabled:cursor-not-allowed
-                    transition-colors flex items-center justify-center gap-2
-                    shadow-sm shadow-amber-500/30
-                  "
+                  className="soft-btn-primary w-full py-3 shadow-glow"
                 >
                   {unlockState === 'password-pending' ? (
                     <>
@@ -241,12 +210,11 @@ export function LockScreen({
                   )}
                 </button>
 
-                {/* Back to biometric if available */}
                 {isBiometricEnabled && isBiometricSupported && (
                   <button
                     type="button"
                     onClick={() => { setMode('biometric'); clearError(); }}
-                    className="flex items-center justify-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:underline"
+                    className="flex items-center justify-center gap-1.5 text-sm text-accent dark:text-accent-light hover:underline"
                   >
                     <Fingerprint size={14} />
                     Use biometric instead
@@ -256,7 +224,6 @@ export function LockScreen({
             )}
           </div>
 
-          {/* ── Footer ────────────────────────────────────────── */}
           <div className="px-8 pb-6 flex justify-center">
             <button
               onClick={onSignOut}
@@ -270,9 +237,6 @@ export function LockScreen({
     </div>
   );
 }
-
-// ── Biometric Setup Sheet ──────────────────────────────────────
-// Small inline component for the "Enable biometrics" flow shown in settings.
 
 interface BiometricSetupProps {
   username: string;
@@ -300,7 +264,7 @@ export function BiometricSetup({ username, onEnable, onDismiss }: BiometricSetup
 
   if (state === 'success') {
     return (
-      <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40 text-sm text-green-700 dark:text-green-400">
+      <div className="p-4 rounded-2xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40 text-sm text-green-700 dark:text-green-400">
         Biometric unlock enabled for <strong>{username}</strong>. You can now use Face ID / Touch ID.
       </div>
     );
@@ -319,18 +283,18 @@ export function BiometricSetup({ username, onEnable, onDismiss }: BiometricSetup
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Master password"
-        className="px-3 py-2 rounded-lg border border-gray-200 dark:border-zinc-600 bg-transparent text-sm outline-none focus:ring-2 focus:ring-amber-400/50"
+        className="soft-input"
       />
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={!password || state === 'pending'}
-          className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-sm font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+          className="soft-btn-primary flex-1 disabled:opacity-50"
         >
           {state === 'pending' ? <Loader2 size={14} className="animate-spin" /> : <Fingerprint size={14} />}
           Enable Biometrics
         </button>
-        <button type="button" onClick={onDismiss} className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
+        <button type="button" onClick={onDismiss} className="soft-btn-ghost px-4">
           Cancel
         </button>
       </div>

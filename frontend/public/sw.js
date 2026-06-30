@@ -1,5 +1,14 @@
-const CACHE = 'secure-notes-v1';
-const SHELL = ['/', '/login', '/notes', '/manifest.json'];
+const CACHE = 'notes-pwa-v2';
+const SHELL = [
+  '/',
+  '/login',
+  '/notes',
+  '/manifest.json',
+  '/favicon.png',
+  '/apple-touch-icon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -25,7 +34,6 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // API routes are proxied to the Go backend — never cache them
   if (url.pathname.startsWith('/api')) return;
 
   event.respondWith(

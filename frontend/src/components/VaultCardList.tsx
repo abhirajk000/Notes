@@ -23,7 +23,7 @@ export function VaultCardList({
     return (
       <div className="flex-1 flex flex-col p-3 gap-2">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-14 rounded-xl bg-gray-200 dark:bg-zinc-700 animate-pulse" />
+          <div key={i} className="h-14 rounded-2xl bg-violet-100 dark:bg-violet-900/30 animate-pulse" />
         ))}
       </div>
     );
@@ -34,17 +34,17 @@ export function VaultCardList({
       <div className="px-3 py-2">
         <button
           onClick={onAddCard}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/70 dark:bg-zinc-700/60 hover:bg-white dark:hover:bg-zinc-700 text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors shadow-sm"
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-violet-950/30 hover:bg-violet-50 dark:hover:bg-violet-950/50 text-sm font-medium text-gray-700 dark:text-gray-200 transition-all shadow-soft border border-violet-100/60 dark:border-violet-800/30"
         >
-          <Plus size={15} className="text-indigo-500" />
+          <Plus size={15} className="text-accent" />
           Add Card
         </button>
       </div>
 
       {cards.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-            <CreditCard size={22} className="text-indigo-500" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
+          <div className="soft-icon-box w-14 h-14">
+            <CreditCard size={24} className="text-accent/70" />
           </div>
           <p className="text-sm text-gray-400 dark:text-gray-500 leading-relaxed">
             No cards saved yet.
@@ -59,17 +59,17 @@ export function VaultCardList({
               key={card.id}
               onClick={() => onSelect(card.id)}
               className={`
-                w-full text-left px-4 py-3.5 border-b border-gray-100 dark:border-zinc-700/50
-                transition-colors flex items-center gap-3
+                w-full text-left px-4 py-3.5 border-b border-violet-50 dark:border-violet-900/15
+                transition-all duration-200 flex items-center gap-3
                 ${
                   selectedId === card.id
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-l-indigo-500'
-                    : 'hover:bg-gray-100 dark:hover:bg-zinc-700/40 border-l-2 border-l-transparent'
+                    ? 'bg-accent-muted dark:bg-accent-muted-dark border-l-2 border-l-accent'
+                    : 'hover:bg-violet-50/60 dark:hover:bg-violet-950/20 border-l-2 border-l-transparent'
                 }
               `}
             >
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-800 to-indigo-950 flex items-center justify-center flex-shrink-0">
-                <CreditCard size={16} className="text-indigo-300" />
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-700 to-purple-900 flex items-center justify-center flex-shrink-0 shadow-soft">
+                <CreditCard size={16} className="text-violet-200" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">

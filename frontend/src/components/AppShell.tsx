@@ -130,10 +130,10 @@ export function AppShell({
   const listCount = activeSection === 'vault' ? cards.length : filteredNotes.length;
 
   return (
-    <div className="flex h-dvh w-dvw overflow-hidden bg-white dark:bg-[#1c1c1e]">
+    <div className="flex h-dvh w-dvw overflow-hidden bg-surface dark:bg-surface-dark">
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-violet-950/20 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -174,14 +174,14 @@ export function AppShell({
       <div
         className={`
           flex flex-col w-full lg:w-[300px] flex-shrink-0
-          border-r border-gray-200 dark:border-zinc-700/60
-          bg-[#f9f9f9] dark:bg-[#2c2c2e]
+          border-r border-violet-100/60 dark:border-violet-900/20
+          bg-notelist dark:bg-notelist-dark
           ${mobilePanel === 'editor' ? 'hidden lg:flex' : 'flex'}
         `}
       >
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-zinc-700/60 flex-shrink-0">
+        <div className="flex items-center gap-2 px-4 py-3.5 border-b border-violet-100/60 dark:border-violet-900/20 flex-shrink-0">
           <button
-            className="lg:hidden p-1 -ml-1 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
+            className="lg:hidden p-2 -ml-1 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
             onClick={() => setSidebarOpen(true)}
           >
             <Menu size={18} />
@@ -191,7 +191,7 @@ export function AppShell({
             {listTitle}
           </h2>
 
-          <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+          <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums bg-violet-50 dark:bg-violet-950/30 px-2 py-0.5 rounded-lg">
             {listCount}
           </span>
         </div>
@@ -221,9 +221,9 @@ export function AppShell({
         `}
       >
         {mobilePanel === 'editor' && (
-          <div className="lg:hidden flex items-center gap-1 px-3 py-2 border-b border-gray-100 dark:border-zinc-700/60 bg-white dark:bg-[#1c1c1e] flex-shrink-0">
+          <div className="lg:hidden flex items-center gap-1 px-3 py-2.5 border-b border-violet-100/60 dark:border-violet-900/20 bg-editor dark:bg-editor-dark flex-shrink-0">
             <button
-              className="flex items-center gap-1 text-sm text-amber-500 font-medium"
+              className="flex items-center gap-1 text-sm text-accent font-medium px-2 py-1 rounded-xl hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
               onClick={() => setMobilePanel('list')}
             >
               <ChevronLeft size={18} />

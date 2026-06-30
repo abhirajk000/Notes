@@ -39,20 +39,19 @@ function NoteCard({
     <button
       onClick={onClick}
       className={`
-        w-full text-left px-4 py-3.5 border-b border-gray-100 dark:border-zinc-700/50
-        transition-colors group
+        w-full text-left px-4 py-3.5 border-b border-violet-50 dark:border-violet-900/15
+        transition-all duration-200 group
         ${
           selected
-            ? 'bg-amber-50 dark:bg-amber-900/20 border-l-2 border-l-amber-400'
-            : 'hover:bg-gray-100 dark:hover:bg-zinc-700/40 border-l-2 border-l-transparent'
+            ? 'bg-accent-muted dark:bg-accent-muted-dark border-l-2 border-l-accent'
+            : 'hover:bg-violet-50/60 dark:hover:bg-violet-950/20 border-l-2 border-l-transparent'
         }
       `}
     >
-      {/* Title row */}
       <div className="flex items-start justify-between gap-2 mb-0.5">
         <h3
           className={`text-sm font-semibold leading-snug truncate flex-1
-          ${selected ? 'text-amber-800 dark:text-amber-200' : 'text-gray-900 dark:text-gray-100'}`}
+          ${selected ? 'text-brand-deep dark:text-violet-200' : 'text-gray-900 dark:text-gray-100'}`}
         >
           {note.title || 'Untitled'}
         </h3>
@@ -61,10 +60,9 @@ function NoteCard({
         </span>
       </div>
 
-      {/* Preview row */}
       <div className="flex items-center gap-1.5">
         {note.is_pinned && (
-          <Pin size={11} className="text-amber-500 flex-shrink-0 fill-amber-400" />
+          <Pin size={11} className="text-accent flex-shrink-0 fill-violet-300" />
         )}
         <p className="text-xs text-gray-400 dark:text-gray-500 truncate leading-normal">
           {preview || 'No additional text'}
@@ -77,11 +75,11 @@ function NoteCard({
 export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListProps) {
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col p-2 gap-2">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="px-4 py-3.5 border-b border-gray-100 dark:border-zinc-700/50">
-            <div className="h-3.5 bg-gray-200 dark:bg-zinc-700 rounded mb-2 w-3/4 animate-pulse" />
-            <div className="h-3 bg-gray-100 dark:bg-zinc-700/60 rounded w-1/2 animate-pulse" />
+          <div key={i} className="px-4 py-3.5 rounded-2xl">
+            <div className="h-3.5 bg-violet-100 dark:bg-violet-900/30 rounded-lg mb-2 w-3/4 animate-pulse" />
+            <div className="h-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg w-1/2 animate-pulse" />
           </div>
         ))}
       </div>
@@ -90,15 +88,15 @@ export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListPro
 
   if (notes.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6 py-12">
-        <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-zinc-700 flex items-center justify-center">
-          <FileText size={22} className="text-gray-300 dark:text-zinc-500" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 py-12">
+        <div className="soft-icon-box w-14 h-14">
+          <FileText size={24} className="text-accent/60" />
         </div>
         <p className="text-sm text-gray-400 dark:text-gray-500 leading-relaxed">
           No notes yet.
           <br />
           Press{' '}
-          <kbd className="text-xs bg-gray-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded font-mono">⌘N</kbd>{' '}
+          <kbd className="text-xs bg-violet-50 dark:bg-violet-950/40 px-1.5 py-0.5 rounded-lg font-mono">⌘N</kbd>{' '}
           to create one.
         </p>
       </div>
@@ -143,7 +141,7 @@ export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListPro
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-4 pt-3 pb-1">
+    <div className="px-4 pt-4 pb-1.5">
       <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
         {label}
       </span>
