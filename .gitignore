@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build output
+dist/
+.next/
+*.tsbuildinfo
+backend-go/server
+backend-go/bin/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Go
+go.work
+go.work.sum

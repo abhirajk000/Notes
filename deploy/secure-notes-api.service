@@ -1,0 +1,23 @@
+[Unit]
+Description=Secure Notes Go API (Zero-Knowledge Vault)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=notes
+Group=notes
+WorkingDirectory=/opt/secure-notes/backend-go
+EnvironmentFile=/etc/secure-notes/env
+ExecStart=/opt/secure-notes/backend-go/bin/secure-notes-api
+Restart=on-failure
+RestartSec=5
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/secure-notes/backend-go
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
