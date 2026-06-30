@@ -4,18 +4,18 @@
 
 /* ── CSS custom properties ────────────────────────────────────── */
 :root {
-  --sidebar-w: 224px;
-  --list-w: 300px;
-  --accent: #9333ea;
-  --accent-soft: #f3e8ff;
-  --surface: #f7f5fb;
+  --sidebar-w: 240px;
+  --list-w: 320px;
+  --accent: #8b5cf6;
+  --accent-soft: #ede9fe;
+  --surface: #f8f6fc;
   color-scheme: light;
 }
 
 .dark {
-  --accent: #a855f7;
-  --accent-soft: #2e1a47;
-  --surface: #141218;
+  --accent: #a78bfa;
+  --accent-soft: #2a1f3d;
+  --surface: #0f0d14;
   color-scheme: dark;
 }
 
@@ -35,27 +35,63 @@ body {
   overflow: hidden;
   height: 100dvh;
   width: 100dvw;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
-/* ── Soft UI utilities ───────────────────────────────────────── */
+/* ── Safe areas (iOS notch / home indicator) ─────────────────── */
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+.safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+.safe-all {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+/* Prevent iOS zoom on input focus */
+@media (max-width: 1023px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ── Premium UI utilities ─────────────────────────────────────── */
 @layer components {
+  .glass-panel {
+    @apply bg-white/70 dark:bg-[#1a1722]/75 backdrop-blur-2xl
+      border border-white/60 dark:border-white/[0.06]
+      shadow-glass dark:shadow-glass-dark;
+  }
+
   .soft-card {
-    @apply bg-white dark:bg-[#1e1b26] rounded-3xl shadow-soft-md border border-violet-100/80 dark:border-violet-900/20;
+    @apply glass-panel rounded-3xl;
   }
 
   .soft-panel {
-    @apply bg-white/80 dark:bg-[#1e1b26]/90 backdrop-blur-xl;
+    @apply bg-white/80 dark:bg-[#1a1722]/90 backdrop-blur-xl;
   }
 
   .soft-input {
-    @apply w-full px-4 py-3 rounded-2xl text-sm
-      bg-violet-50/50 dark:bg-violet-950/20
-      border border-violet-100 dark:border-violet-900/30
+    @apply w-full px-4 py-3.5 rounded-2xl text-sm
+      bg-white/60 dark:bg-white/[0.04]
+      border border-violet-200/60 dark:border-violet-800/25
       text-gray-900 dark:text-gray-100
       placeholder:text-gray-400 dark:placeholder:text-gray-500
-      outline-none
-      focus:border-accent/40 focus:ring-2 focus:ring-accent/10
-      transition-all;
+      outline-none shadow-soft-inset
+      focus:border-accent/50 focus:ring-2 focus:ring-accent/15 focus:bg-white/80 dark:focus:bg-white/[0.06]
+      transition-all duration-200;
   }
 
   .soft-btn {
@@ -65,48 +101,72 @@ body {
   }
 
   .soft-btn-primary {
-    @apply soft-btn text-white bg-accent hover:bg-accent-light active:bg-accent-dark shadow-soft;
+    @apply soft-btn text-white font-semibold
+      bg-gradient-to-b from-accent-light to-accent
+      hover:from-accent hover:to-accent-dark
+      active:scale-[0.98] shadow-soft-md hover:shadow-glow-sm;
   }
 
   .soft-btn-ghost {
     @apply soft-btn text-gray-600 dark:text-gray-400
-      hover:bg-violet-50 dark:hover:bg-violet-950/30
+      hover:bg-violet-50/80 dark:hover:bg-violet-950/30
       hover:text-accent dark:hover:text-accent-light;
   }
 
   .soft-icon-box {
     @apply flex items-center justify-center rounded-2xl
-      bg-gradient-to-br from-violet-100 to-purple-50
-      dark:from-violet-950/60 dark:to-purple-950/40
-      shadow-soft border border-violet-100/60 dark:border-violet-800/30;
+      bg-gradient-to-br from-violet-100/80 to-purple-50
+      dark:from-violet-950/50 dark:to-purple-950/30
+      shadow-card border border-violet-100/50 dark:border-violet-800/20;
   }
 
   .soft-nav-item {
-    @apply w-full flex items-center gap-2.5 py-2 px-3 rounded-2xl text-sm transition-all duration-200;
+    @apply w-full flex items-center gap-2.5 py-2.5 px-3 rounded-xl text-sm transition-all duration-200 min-h-[44px];
   }
 
   .soft-nav-item-active {
-    @apply bg-accent-muted dark:bg-accent-muted-dark text-accent-dark dark:text-violet-300 font-medium shadow-soft;
+    @apply bg-white/90 dark:bg-white/[0.08] text-accent-dark dark:text-violet-200 font-medium shadow-card;
   }
 
   .soft-nav-item-inactive {
-    @apply text-gray-600 dark:text-gray-400 hover:bg-white/70 dark:hover:bg-violet-950/20;
+    @apply text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-white/[0.04];
+  }
+
+  .list-item-card {
+    @apply w-full text-left rounded-2xl p-3.5 mx-2 my-1
+      transition-all duration-200 border border-transparent
+      hover:bg-white/70 dark:hover:bg-white/[0.04] hover:shadow-card
+      active:scale-[0.99];
+  }
+
+  .list-item-card-selected {
+    @apply bg-white dark:bg-white/[0.06] shadow-card border-violet-200/50 dark:border-violet-800/30;
+  }
+
+  .premium-badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium tracking-wide
+      bg-violet-100/80 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300
+      border border-violet-200/50 dark:border-violet-800/30;
+  }
+
+  .section-label {
+    @apply text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.14em] px-5 pt-4 pb-2;
   }
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-violet-200/60 dark:bg-violet-800/40 rounded-full;
+  @apply bg-violet-200/50 dark:bg-violet-800/30 rounded-full;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-violet-300/80 dark:bg-violet-700/60;
+  @apply bg-violet-300/70 dark:bg-violet-700/50;
 }
 
 /* ── Transitions on theme switch ──────────────────────────────── */
@@ -120,36 +180,56 @@ body {
   transition: none !important;
 }
 
-/* ── Editor textarea ─────────────────────────────────────────── */
+/* ── Editor typography ─────────────────────────────────────────── */
 .note-editor-title {
-  @apply w-full bg-transparent outline-none resize-none font-semibold;
-  font-size: 1.625rem;
-  line-height: 1.3;
+  @apply w-full bg-transparent outline-none resize-none font-display;
+  font-size: 2rem;
+  line-height: 1.25;
   letter-spacing: -0.02em;
+  font-weight: 400;
 }
 
 .note-editor-body {
   @apply w-full bg-transparent outline-none resize-none font-normal leading-relaxed;
-  font-size: 1rem;
-  line-height: 1.75;
+  font-size: 1.0625rem;
+  line-height: 1.8;
   min-height: 60vh;
+}
+
+@media (max-width: 1023px) {
+  .note-editor-title {
+    font-size: 1.625rem;
+    line-height: 1.3;
+  }
+
+  .note-editor-body {
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    min-height: 40vh;
+  }
+}
+
+/* ── Mobile scroll panels ────────────────────────────────────── */
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 /* ── Lock screen backdrop blur ───────────────────────────────── */
 .lock-backdrop {
-  backdrop-filter: blur(28px) saturate(1.6);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
 }
 
 /* ── Biometric button shimmer ────────────────────────────────── */
-@keyframes shimmer {
-  0%   { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.35); }
-  70%  { box-shadow: 0 0 0 14px rgba(147, 51, 234, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
+@keyframes biometric-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+  70%  { box-shadow: 0 0 0 16px rgba(139, 92, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
 }
 
 .biometric-pulse {
-  animation: shimmer 2s infinite;
+  animation: biometric-ring 2.5s infinite;
 }
 
 /* ── Sync indicator ──────────────────────────────────────────── */
@@ -170,10 +250,69 @@ body {
 
 /* ── Login / unlock screen background ────────────────────────── */
 .login-bg {
-  background-color: #f7f5fb;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(147, 51, 234, 0.12) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(168, 85, 247, 0.06) 0%, transparent 50%),
-    radial-gradient(circle, rgba(147, 51, 234, 0.06) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 28px 28px;
+  @apply bg-surface dark:bg-surface-dark bg-mesh-light dark:bg-mesh-dark;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+.login-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: gradient-shift 8s ease-in-out infinite;
+}
+
+.login-orb-1 {
+  width: 400px;
+  height: 400px;
+  background: rgba(139, 92, 246, 0.2);
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.login-orb-2 {
+  width: 300px;
+  height: 300px;
+  background: rgba(167, 139, 250, 0.15);
+  bottom: 10%;
+  right: -5%;
+  animation-delay: -4s;
+}
+
+.dark .login-orb-1 {
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.dark .login-orb-2 {
+  background: rgba(124, 58, 237, 0.1);
+}
+
+/* ── Credit card holographic effect ──────────────────────────── */
+.card-holographic::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 4s linear infinite;
+  pointer-events: none;
 }

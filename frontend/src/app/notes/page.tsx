@@ -12,43 +12,32 @@ import { Loader2 } from 'lucide-react';
 import { AppIcon } from '../../components/AppIcon';
 import { AppShell } from '../../components/AppShell';
 import { LockScreen } from '../../components/LockScreen';
+import { APP_DISPLAY_NAME } from '../../lib/config';
 import { useAutoLock } from '../../hooks/useAutoLock';
 import { useWebAuthn } from '../../hooks/useWebAuthn';
 import { CryptoWorkerClient } from '../../lib/cryptoWorkerClient';
 import { SyncManager, useSyncStatus } from '../../lib/syncManager';
 import { auth } from '../../lib/api';
 import {
+  getStoredSession,
+  clearLocalSession,
+  takePendingUnlock,
+  signOut,
+  type StoredSession,
+} from '../../lib/session';
+import {
   getAllNotes,
   saveNote,
   markForDeletion,
-  clearAllNotes,
 } from '../../lib/db';
 import {
   loadPlainVaultCards,
   saveVaultCard,
   deleteVaultCard,
-  clearAllVaultCards,
 } from '../../lib/vaultCards';
 import type { PlainNote, LocalNote } from '../../types/notes';
 import type { PlainVaultCard, CreditCardData } from '../../types/vault';
 import { EMPTY_CARD } from '../../types/vault';
-
-// ── Session shape persisted in localStorage ────────────────────
-interface StoredSession {
-  username: string;
-  encryption_salt: string;
-}
-
-const SESSION_KEY = 'sn_session';
-
-function getStoredSession(): StoredSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as StoredSession) : null;
-  } catch {
-    return null;
-  }
-}
 
 // ── App lock states ────────────────────────────────────────────
 type AppState = 'checking' | 'locked' | 'unlocking' | 'unlocked';
@@ -79,15 +68,6 @@ export default function NotesPage() {
   }, []);
 
   // ── Check session on mount ───────────────────────────────────
-  useEffect(() => {
-    const stored = getStoredSession();
-    if (!stored) {
-      router.replace('/login');
-      return;
-    }
-    setSession(stored);
-    setAppState('locked');
-  }, [router]);
 
   // ── Auto-lock callback ───────────────────────────────────────
   const handleLock = useCallback(() => {
@@ -191,10 +171,66 @@ export default function NotesPage() {
     [session, loadNotes, loadCards],
   );
 
+  // ── Bootstrap: verify server session + auto-unlock after login ──
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      const stored = getStoredSession();
+      if (!stored) {
+        router.replace('/login');
+        return;
+      }
+
+      try {
+        await auth.me();
+      } catch {
+        await clearLocalSession();
+        router.replace('/login');
+        return;
+      }
+
+      if (cancelled) return;
+      setSession(stored);
+
+      const pending = takePendingUnlock();
+      if (pending) {
+        setAppState('unlocking');
+        try {
+          const crypto = CryptoWorkerClient.getInstance();
+          await crypto.deriveKey(pending, stored.encryption_salt);
+          await Promise.all([loadNotes(), loadCards()]);
+          if (!cancelled) {
+            setAppState('unlocked');
+            void SyncManager.getInstance().sync();
+          }
+        } catch {
+          if (!cancelled) setAppState('locked');
+        }
+        return;
+      }
+
+      setAppState('locked');
+    }
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, loadNotes, loadCards]);
+
   // ── Biometric unlock ─────────────────────────────────────────
   const handleBiometricUnlock = useCallback(async (): Promise<string> => {
     return webAuthn.authenticate();
   }, [webAuthn]);
+
+  const handleEnableBiometric = useCallback(
+    async (password: string) => {
+      if (!session) return;
+      await webAuthn.enable(APP_DISPLAY_NAME, password);
+    },
+    [session, webAuthn],
+  );
 
   // ── New note ─────────────────────────────────────────────────
   const handleNewNote = useCallback(() => {
@@ -332,19 +368,6 @@ export default function NotesPage() {
     });
   }, []);
 
-  // ── Logout ───────────────────────────────────────────────────
-  const handleLogout = useCallback(async () => {
-    try {
-      await auth.logout();
-    } catch {}
-
-    try { CryptoWorkerClient.getInstance().destroy().catch(() => {}); } catch {}
-    SyncManager.getInstance().destroy();
-    await Promise.all([clearAllNotes(), clearAllVaultCards()]);
-    localStorage.removeItem(SESSION_KEY);
-    router.replace('/login');
-  }, [router]);
-
   // ── Keyboard shortcuts ───────────────────────────────────────
   useEffect(() => {
     if (appState !== 'unlocked') return;
@@ -372,7 +395,6 @@ export default function NotesPage() {
     <div className="relative h-dvh w-dvw overflow-hidden">
       {/* ── App shell (always mounted so layout doesn't jump on unlock) ── */}
       <AppShell
-        username={session?.username ?? ''}
         notes={notes}
         selectedNoteId={selectedNoteId}
         cards={cards}
@@ -385,6 +407,8 @@ export default function NotesPage() {
         isSavingCard={isSavingCard}
         isDark={isDark}
         isBiometricEnabled={webAuthn.isEnabled}
+        isBiometricSupported={webAuthn.isSupported}
+        onEnableBiometric={handleEnableBiometric}
         onSelectNote={setSelectedNoteId}
         onNewNote={handleNewNote}
         onSaveNote={handleSaveNote}
@@ -396,17 +420,14 @@ export default function NotesPage() {
         onDeleteCard={handleDeleteCard}
         onToggleDark={handleToggleDark}
         onLock={handleLock}
-        onLogout={handleLogout}
       />
 
-      {/* ── Lock screen overlay ── */}
       <LockScreen
-        username={session?.username ?? ''}
         isBiometricEnabled={webAuthn.isEnabled}
         isBiometricSupported={webAuthn.isSupported}
         onUnlock={handleUnlock}
         onBiometricUnlock={handleBiometricUnlock}
-        onSignOut={handleLogout}
+        onSignOut={() => void signOut()}
         isVisible={appState === 'locked' || appState === 'unlocking'}
       />
     </div>
@@ -417,12 +438,16 @@ export default function NotesPage() {
 
 function LoadingScreen() {
   return (
-    <div className="h-dvh w-dvw flex items-center justify-center bg-surface dark:bg-surface-dark">
-      <div className="flex flex-col items-center gap-4">
-        <AppIcon size={56} className="animate-soft-pulse shadow-soft-md" />
-        <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500">
-          <Loader2 size={14} className="animate-spin text-accent" />
-          Loading…
+    <div className="h-dvh w-dvw flex items-center justify-center bg-surface dark:bg-surface-dark relative overflow-hidden">
+      <div className="absolute inset-0 bg-mesh-light dark:bg-mesh-dark opacity-60" aria-hidden />
+      <div className="relative flex flex-col items-center gap-5 animate-fade-in">
+        <div className="relative">
+          <div className="absolute inset-0 rounded-3xl bg-accent/20 blur-xl scale-125 animate-soft-pulse" aria-hidden />
+          <AppIcon size={60} className="relative shadow-soft-lg" />
+        </div>
+        <div className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-gray-400 font-medium">
+          <Loader2 size={15} className="animate-spin text-accent" />
+          Unlocking vault…
         </div>
       </div>
     </div>

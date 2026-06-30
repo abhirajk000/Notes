@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ChevronLeft, Menu } from 'lucide-react';
+import { ChevronLeft, Menu, Plus } from 'lucide-react';
 import { Sidebar, type AppSection } from './Sidebar';
 import { NoteList } from './NoteList';
 import { NoteEditor } from './NoteEditor';
@@ -14,7 +14,6 @@ import type { SyncStatus } from '../lib/syncManager';
 type MobilePanel = 'list' | 'editor';
 
 interface AppShellProps {
-  username: string;
   notes: PlainNote[];
   selectedNoteId: string | null;
   cards: PlainVaultCard[];
@@ -27,6 +26,8 @@ interface AppShellProps {
   onSyncNow: () => void;
   isDark: boolean;
   isBiometricEnabled: boolean;
+  isBiometricSupported: boolean;
+  onEnableBiometric: (password: string) => Promise<void>;
   onSelectNote: (id: string) => void;
   onNewNote: () => void;
   onSaveNote: (patch: { title: string; content: string; is_pinned: boolean }) => void;
@@ -38,11 +39,9 @@ interface AppShellProps {
   onDeleteCard: () => void;
   onToggleDark: () => void;
   onLock: () => void;
-  onLogout: () => void;
 }
 
 export function AppShell({
-  username,
   notes,
   selectedNoteId,
   cards,
@@ -55,6 +54,8 @@ export function AppShell({
   onSyncNow,
   isDark,
   isBiometricEnabled,
+  isBiometricSupported,
+  onEnableBiometric,
   onSelectNote,
   onNewNote,
   onSaveNote,
@@ -66,7 +67,6 @@ export function AppShell({
   onDeleteCard,
   onToggleDark,
   onLock,
-  onLogout,
 }: AppShellProps) {
   const [activeSection, setActiveSection] = useState<AppSection>('notes');
   const [activeFolder, setActiveFolder] = useState<'all' | 'pinned'>('all');
@@ -107,11 +107,13 @@ export function AppShell({
   const handleNewNote = useCallback(() => {
     onNewNote();
     setMobilePanel('editor');
+    setSidebarOpen(false);
   }, [onNewNote]);
 
   const handleAddCard = useCallback(() => {
     onAddCard();
     setMobilePanel('editor');
+    setSidebarOpen(false);
   }, [onAddCard]);
 
   const handleSectionSelect = useCallback((section: AppSection) => {
@@ -129,25 +131,30 @@ export function AppShell({
 
   const listCount = activeSection === 'vault' ? cards.length : filteredNotes.length;
 
+  const handleFab = activeSection === 'notes' ? handleNewNote : handleAddCard;
+  const fabLabel = activeSection === 'notes' ? 'New note' : 'Add card';
+
   return (
-    <div className="flex h-dvh w-dvw overflow-hidden bg-surface dark:bg-surface-dark">
+    <div className="flex h-dvh w-full max-w-[100dvw] overflow-hidden bg-surface dark:bg-surface-dark relative">
+      <div className="absolute inset-0 bg-mesh-light dark:bg-mesh-dark opacity-40 pointer-events-none" aria-hidden />
+
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-violet-950/20 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-violet-950/20 backdrop-blur-md lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden
         />
       )}
 
       <div
         className={`
-          fixed top-0 left-0 bottom-0 z-50 w-56
+          fixed top-0 left-0 bottom-0 z-50 w-[min(88vw,300px)]
           transform transition-transform duration-300 ease-out
-          lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
+          lg:relative lg:w-56 lg:translate-x-0 lg:z-auto lg:flex-shrink-0
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         <Sidebar
-          username={username}
           totalNotes={notes.length}
           pinnedNotes={pinnedCount}
           totalCards={cards.length}
@@ -157,6 +164,8 @@ export function AppShell({
           onSyncNow={onSyncNow}
           isDark={isDark}
           isBiometricEnabled={isBiometricEnabled}
+          isBiometricSupported={isBiometricSupported}
+          onEnableBiometric={onEnableBiometric}
           activeFolder={activeFolder}
           onSectionSelect={handleSectionSelect}
           onFolderSelect={(f) => {
@@ -166,32 +175,35 @@ export function AppShell({
           onSearch={setSearchQuery}
           onToggleDark={onToggleDark}
           onLock={onLock}
-          onLogout={onLogout}
           onNewNote={handleNewNote}
+          onClose={() => setSidebarOpen(false)}
+          showClose={sidebarOpen}
         />
       </div>
 
       <div
         className={`
-          flex flex-col w-full lg:w-[300px] flex-shrink-0
-          border-r border-violet-100/60 dark:border-violet-900/20
-          bg-notelist dark:bg-notelist-dark
+          relative flex flex-col w-full lg:w-[320px] flex-shrink-0 min-w-0
+          border-r border-violet-100/40 dark:border-violet-900/15
+          bg-notelist/80 dark:bg-notelist-dark/90 backdrop-blur-sm
           ${mobilePanel === 'editor' ? 'hidden lg:flex' : 'flex'}
         `}
       >
-        <div className="flex items-center gap-2 px-4 py-3.5 border-b border-violet-100/60 dark:border-violet-900/20 flex-shrink-0">
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-3 safe-top border-b border-violet-100/40 dark:border-violet-900/15 flex-shrink-0 bg-white/40 dark:bg-white/[0.02]">
           <button
-            className="lg:hidden p-2 -ml-1 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
+            type="button"
+            aria-label="Open menu"
+            className="lg:hidden p-2.5 -ml-1 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-white/[0.06] active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu size={18} />
+            <Menu size={20} />
           </button>
 
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200 capitalize flex-1">
+          <h2 className="text-[15px] font-semibold text-gray-800 dark:text-gray-200 capitalize flex-1 truncate tracking-tight">
             {listTitle}
           </h2>
 
-          <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums bg-violet-50 dark:bg-violet-950/30 px-2 py-0.5 rounded-lg">
+          <span className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums bg-white/60 dark:bg-white/[0.04] px-2 py-1 rounded-lg flex-shrink-0 font-medium border border-violet-100/40 dark:border-violet-800/20">
             {listCount}
           </span>
         </div>
@@ -202,6 +214,7 @@ export function AppShell({
             selectedId={selectedNoteId}
             isLoading={isLoading}
             onSelect={handleSelectNote}
+            onNewNote={handleNewNote}
           />
         ) : (
           <VaultCardList
@@ -212,22 +225,35 @@ export function AppShell({
             onAddCard={handleAddCard}
           />
         )}
+
+        {/* Mobile FAB */}
+        {mobilePanel === 'list' && (
+          <button
+            type="button"
+            aria-label={fabLabel}
+            onClick={handleFab}
+            className="lg:hidden fixed z-30 right-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] w-14 h-14 rounded-2xl bg-gradient-to-b from-accent-light to-accent text-white shadow-soft-lg shadow-violet-500/25 flex items-center justify-center active:scale-95 hover:shadow-glow transition-all"
+          >
+            <Plus size={24} strokeWidth={2.5} />
+          </button>
+        )}
       </div>
 
       <div
         className={`
-          flex-1 flex flex-col min-w-0
+          flex-1 flex flex-col min-w-0 min-h-0
           ${mobilePanel === 'list' ? 'hidden lg:flex' : 'flex'}
         `}
       >
         {mobilePanel === 'editor' && (
-          <div className="lg:hidden flex items-center gap-1 px-3 py-2.5 border-b border-violet-100/60 dark:border-violet-900/20 bg-editor dark:bg-editor-dark flex-shrink-0">
+          <div className="lg:hidden flex items-center gap-2 px-2 py-2 safe-top border-b border-violet-100/60 dark:border-violet-900/20 bg-editor dark:bg-editor-dark flex-shrink-0">
             <button
-              className="flex items-center gap-1 text-sm text-accent font-medium px-2 py-1 rounded-xl hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
+              type="button"
+              className="flex items-center gap-0.5 text-sm text-accent font-medium px-3 py-2.5 rounded-xl active:bg-violet-50 dark:active:bg-violet-950/30 transition-colors min-h-[44px]"
               onClick={() => setMobilePanel('list')}
             >
-              <ChevronLeft size={18} />
-              {activeSection === 'vault' ? 'Cards' : 'Notes'}
+              <ChevronLeft size={20} />
+              <span>{activeSection === 'vault' ? 'Cards' : 'Notes'}</span>
             </button>
           </div>
         )}
@@ -239,6 +265,7 @@ export function AppShell({
             onSave={onSaveNote}
             onDelete={onDeleteNote}
             onTogglePin={onTogglePin}
+            isMobile={mobilePanel === 'editor'}
           />
         ) : (
           <VaultEditor

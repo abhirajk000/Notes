@@ -125,7 +125,7 @@ export const auth = {
     request<AuthResponse>('/api/auth/me'),
 
   status: () =>
-    request<{ registrationOpen: boolean; maxUsers: number }>('/api/auth/status'),
+    request<{ registrationOpen: boolean; hasAccount: boolean; maxUsers: number }>('/api/auth/status'),
 };
 
 // ── Notes endpoints ────────────────────────────────────────────────

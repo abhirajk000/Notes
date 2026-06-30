@@ -35,7 +35,7 @@ cp .env.example .env.local
 npm install && npm run build
 ```
 
-Set `NEXT_PUBLIC_API_URL` in Vercel → Environment Variables → redeploy.
+Set `BACKEND_URL=https://api.abhiraj.xyz` in Vercel → Environment Variables → redeploy.
 
 ## Project structure
 
@@ -60,7 +60,7 @@ Notes/
 - **Argon2id** login passwords (server-side auth only)
 - **HttpOnly JWT** cookies with `Secure` + `SameSite=Strict`
 - **WebAuthn PRF** biometric unlock (Face ID / Touch ID / Hello)
-- **Auto-lock** after 2 min idle or tab hidden
+- **Auto-lock** after 2 min idle (switching apps does not lock immediately)
 
 ## API endpoints
 
@@ -78,8 +78,8 @@ Notes/
 |----------|-------|---------|
 | `JWT_SECRET` | VPS | `openssl rand -hex 64` |
 | `DATABASE_URL` | VPS | `postgresql://notes_user:...@127.0.0.1/notes_db` |
-| `CORS_ORIGINS` | VPS | `https://your-app.vercel.app` |
-| `NEXT_PUBLIC_API_URL` | Vercel | `https://api.yourdomain.com` |
+| `CORS_ORIGINS` | VPS | `https://notes.abhiraj.xyz` |
+| `BACKEND_URL` | Vercel | `https://api.abhiraj.xyz` |
 
 ## License
 

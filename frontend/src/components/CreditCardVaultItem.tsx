@@ -46,15 +46,28 @@ export function CreditCardVaultItem({
   };
 
   return (
-    <div className="relative w-full max-w-md h-56 bg-gradient-to-br from-violet-900 via-purple-950 to-violet-950 rounded-3xl p-6 text-white shadow-soft-lg border border-violet-800/50 tracking-wide select-none group transition-all duration-300 hover:shadow-glow hover:border-violet-700/60">
-      <div className="flex justify-between items-start mb-8">
-        <div className="text-sm font-semibold uppercase tracking-widest text-violet-300 drop-shadow-sm">
+    <div className="card-holographic relative w-full max-w-md h-52 sm:h-56 bg-gradient-to-br from-violet-800 via-purple-900 to-violet-950 rounded-3xl p-5 sm:p-7 text-white shadow-soft-xl border border-violet-600/30 tracking-wide select-none group transition-all duration-300 hover:shadow-glow-sm overflow-hidden">
+      {/* Decorative chip */}
+      <div className="absolute top-6 right-6 w-10 h-8 rounded-md bg-gradient-to-br from-amber-200/80 to-amber-400/60 opacity-80 shadow-inner" aria-hidden />
+
+      {/* Subtle pattern overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.04] pointer-events-none"
+        style={{
+          backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+          backgroundSize: '24px 24px',
+        }}
+        aria-hidden
+      />
+
+      <div className="relative flex justify-between items-start mb-8">
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300/90">
           {cardName || 'Secure Payment Card'}
         </div>
         <button
           type="button"
           onClick={() => setIsMasked((m) => !m)}
-          className="text-slate-400 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10"
+          className="text-violet-300/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
           title={isMasked ? 'Show Details' : 'Hide Details'}
         >
           {isMasked ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -67,21 +80,21 @@ export function CreditCardVaultItem({
           tabIndex={0}
           onClick={() => handleCopy(cardNumber.replace(/\s+/g, ''), 'number')}
           onKeyDown={(e) => e.key === 'Enter' && handleCopy(cardNumber.replace(/\s+/g, ''), 'number')}
-          className="inline-block text-xl md:text-2xl font-mono tracking-wider cursor-pointer hover:text-violet-200 transition-colors py-1 group/field"
+          className="inline-block text-xl md:text-2xl font-mono tracking-[0.15em] cursor-pointer hover:text-violet-200 transition-colors py-1 group/field"
         >
           {formatCardNumber(cardNumber)}
-          <span className="opacity-0 group-hover/field:opacity-40 ml-2 transition-opacity inline-block align-middle">
+          <span className="opacity-0 group-hover/field:opacity-50 ml-2 transition-opacity inline-block align-middle">
             <Copy size={14} />
           </span>
         </div>
         {copiedField === 'number' && (
-          <span className="absolute -top-8 left-0 bg-emerald-600 text-white text-xs px-2 py-1 rounded shadow-md flex items-center gap-1 animate-fade-in">
-            <Check size={12} /> Number Copied!
+          <span className="absolute -top-8 left-0 bg-emerald-500 text-white text-xs px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 animate-fade-in">
+            <Check size={12} /> Copied!
           </span>
         )}
       </div>
 
-      <div className="flex justify-between items-end mt-auto">
+      <div className="relative flex justify-between items-end mt-auto">
         <div className="flex gap-8">
           <div
             role="button"
@@ -90,12 +103,12 @@ export function CreditCardVaultItem({
             onClick={() => handleCopy(cardHolder, 'holder')}
             onKeyDown={(e) => e.key === 'Enter' && handleCopy(cardHolder, 'holder')}
           >
-            <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Card Holder</div>
+            <div className="text-[9px] text-violet-400/80 uppercase tracking-[0.15em] mb-1">Card Holder</div>
             <div className="text-sm font-medium tracking-wide font-mono hover:text-violet-200 transition-colors">
               {cardHolder || 'VALUED CUSTOMER'}
             </div>
             {copiedField === 'holder' && (
-              <span className="absolute -top-8 left-0 bg-emerald-600 text-white text-xs px-2 py-1 rounded shadow-md flex items-center gap-1">
+              <span className="absolute -top-8 left-0 bg-emerald-500 text-white text-xs px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1">
                 <Check size={12} /> Copied!
               </span>
             )}
@@ -108,12 +121,12 @@ export function CreditCardVaultItem({
             onClick={() => handleCopy(expiry, 'expiry')}
             onKeyDown={(e) => e.key === 'Enter' && handleCopy(expiry, 'expiry')}
           >
-            <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Expires</div>
+            <div className="text-[9px] text-violet-400/80 uppercase tracking-[0.15em] mb-1">Expires</div>
             <div className="text-sm font-medium font-mono hover:text-violet-200 transition-colors">
               {expiry || 'MM/YY'}
             </div>
             {copiedField === 'expiry' && (
-              <span className="absolute -top-8 left-0 bg-emerald-600 text-white text-xs px-2 py-1 rounded shadow-md flex items-center gap-1">
+              <span className="absolute -top-8 left-0 bg-emerald-500 text-white text-xs px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1">
                 <Check size={12} /> Copied!
               </span>
             )}
@@ -127,13 +140,13 @@ export function CreditCardVaultItem({
           onClick={() => handleCopy(cvv, 'cvv')}
           onKeyDown={(e) => e.key === 'Enter' && handleCopy(cvv, 'cvv')}
         >
-          <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">CVV</div>
+          <div className="text-[9px] text-violet-400/80 uppercase tracking-[0.15em] mb-1">CVV</div>
           <div className="text-sm font-medium font-mono hover:text-violet-200 transition-colors">
             {isMasked ? '•••' : cvv}
           </div>
           {copiedField === 'cvv' && (
-            <span className="absolute -top-8 right-0 bg-emerald-600 text-white text-xs px-2 py-1 rounded shadow-md flex items-center gap-1 whitespace-nowrap">
-              <Check size={12} /> CVV Copied!
+            <span className="absolute -top-8 right-0 bg-emerald-500 text-white text-xs px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 whitespace-nowrap">
+              <Check size={12} /> Copied!
             </span>
           )}
         </div>

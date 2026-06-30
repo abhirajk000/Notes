@@ -1,6 +1,6 @@
 'use client';
 
-import { Pin, FileText } from 'lucide-react';
+import { Pin, FileText, Sparkles } from 'lucide-react';
 import type { PlainNote } from '../types/notes';
 
 interface NoteListProps {
@@ -8,6 +8,7 @@ interface NoteListProps {
   selectedId: string | null;
   isLoading: boolean;
   onSelect: (id: string) => void;
+  onNewNote?: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -34,35 +35,28 @@ function NoteCard({
   onClick: () => void;
 }) {
   const preview = note.content.split('\n').find((l) => l.trim()) ?? '';
+  const title = note.title || 'Untitled';
 
   return (
     <button
       onClick={onClick}
-      className={`
-        w-full text-left px-4 py-3.5 border-b border-violet-50 dark:border-violet-900/15
-        transition-all duration-200 group
-        ${
-          selected
-            ? 'bg-accent-muted dark:bg-accent-muted-dark border-l-2 border-l-accent'
-            : 'hover:bg-violet-50/60 dark:hover:bg-violet-950/20 border-l-2 border-l-transparent'
-        }
-      `}
+      className={`list-item-card ${selected ? 'list-item-card-selected' : ''}`}
     >
-      <div className="flex items-start justify-between gap-2 mb-0.5">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
         <h3
-          className={`text-sm font-semibold leading-snug truncate flex-1
+          className={`text-[13px] font-semibold leading-snug truncate flex-1
           ${selected ? 'text-brand-deep dark:text-violet-200' : 'text-gray-900 dark:text-gray-100'}`}
         >
-          {note.title || 'Untitled'}
+          {title}
         </h3>
-        <span className="text-[11px] text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5 tabular-nums">
+        <span className="text-[10px] text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5 tabular-nums font-medium">
           {formatDate(note.updated_at)}
         </span>
       </div>
 
       <div className="flex items-center gap-1.5">
         {note.is_pinned && (
-          <Pin size={11} className="text-accent flex-shrink-0 fill-violet-300" />
+          <Pin size={10} className="text-accent flex-shrink-0 fill-accent/30" />
         )}
         <p className="text-xs text-gray-400 dark:text-gray-500 truncate leading-normal">
           {preview || 'No additional text'}
@@ -72,13 +66,13 @@ function NoteCard({
   );
 }
 
-export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListProps) {
+export function NoteList({ notes, selectedId, isLoading, onSelect, onNewNote }: NoteListProps) {
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col p-2 gap-2">
+      <div className="flex-1 flex flex-col p-3 gap-2">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="px-4 py-3.5 rounded-2xl">
-            <div className="h-3.5 bg-violet-100 dark:bg-violet-900/30 rounded-lg mb-2 w-3/4 animate-pulse" />
+          <div key={i} className="mx-2 p-3.5 rounded-2xl bg-white/40 dark:bg-white/[0.03]">
+            <div className="h-3.5 bg-violet-100/80 dark:bg-violet-900/30 rounded-lg mb-2 w-3/4 animate-pulse" />
             <div className="h-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg w-1/2 animate-pulse" />
           </div>
         ))}
@@ -88,17 +82,36 @@ export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListPro
 
   if (notes.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 py-12">
-        <div className="soft-icon-box w-14 h-14">
-          <FileText size={24} className="text-accent/60" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-8 py-12">
+        <div className="relative">
+          <div className="absolute inset-0 rounded-3xl bg-accent/10 blur-2xl scale-150" aria-hidden />
+          <div className="relative soft-icon-box w-16 h-16">
+            <FileText size={26} className="text-accent/70" />
+          </div>
         </div>
-        <p className="text-sm text-gray-400 dark:text-gray-500 leading-relaxed">
-          No notes yet.
-          <br />
-          Press{' '}
-          <kbd className="text-xs bg-violet-50 dark:bg-violet-950/40 px-1.5 py-0.5 rounded-lg font-mono">⌘N</kbd>{' '}
-          to create one.
-        </p>
+        <div>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            No notes yet
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-relaxed max-w-[200px] mx-auto">
+            <span className="lg:hidden">Tap <strong>+</strong> to create your first note.</span>
+            <span className="hidden lg:inline">
+              Press{' '}
+              <kbd className="text-[10px] bg-violet-100/80 dark:bg-violet-950/40 px-1.5 py-0.5 rounded-md font-mono border border-violet-200/50 dark:border-violet-800/30">⌘N</kbd>{' '}
+              to get started.
+            </span>
+          </p>
+        </div>
+        {onNewNote && (
+          <button
+            type="button"
+            onClick={onNewNote}
+            className="lg:hidden soft-btn-primary mt-1 px-6 py-3 text-sm"
+          >
+            <Sparkles size={14} />
+            Create Note
+          </button>
+        )}
       </div>
     );
   }
@@ -107,10 +120,10 @@ export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListPro
   const unpinned = notes.filter((n) => !n.is_pinned);
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto mobile-scroll pb-20 lg:pb-3 pt-1">
       {pinned.length > 0 && (
         <>
-          <SectionHeader label="Pinned" />
+          <div className="section-label">Pinned</div>
           {pinned.map((n) => (
             <NoteCard
               key={n.id}
@@ -124,7 +137,7 @@ export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListPro
 
       {unpinned.length > 0 && (
         <>
-          {pinned.length > 0 && <SectionHeader label="Notes" />}
+          {pinned.length > 0 && <div className="section-label">Notes</div>}
           {unpinned.map((n) => (
             <NoteCard
               key={n.id}
@@ -135,16 +148,6 @@ export function NoteList({ notes, selectedId, isLoading, onSelect }: NoteListPro
           ))}
         </>
       )}
-    </div>
-  );
-}
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <div className="px-4 pt-4 pb-1.5">
-      <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-        {label}
-      </span>
     </div>
   );
 }

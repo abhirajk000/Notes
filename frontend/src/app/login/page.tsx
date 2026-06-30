@@ -2,11 +2,16 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff, Shield, Lock } from 'lucide-react';
 import { AppIcon } from '../../components/AppIcon';
 import { auth, ApiError } from '../../lib/api';
-
-const USERNAME = 'Abhiraj';
+import { VAULT_USERNAME } from '../../lib/config';
+import {
+  getStoredSession,
+  saveStoredSession,
+  stashPendingUnlock,
+  signOut,
+} from '../../lib/session';
 
 function formatApiError(err: ApiError): string {
   if (err.details && typeof err.details === 'object' && err.details !== null) {
@@ -19,22 +24,53 @@ function formatApiError(err: ApiError): string {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [isRegister, setIsRegister] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    auth
-      .status()
-      .then((s) => {
-        setRegistrationOpen(s.registrationOpen);
-        if (s.registrationOpen) setMode('register');
-      })
-      .catch(() => setRegistrationOpen(false));
-  }, []);
+    let cancelled = false;
+
+    async function bootstrap() {
+      try {
+        // Already signed in on server — go straight to vault
+        const me = await auth.me();
+        if (!cancelled) {
+          const existing = getStoredSession();
+          if (!existing || existing.encryption_salt !== me.user.encryption_salt) {
+            saveStoredSession({
+              username: me.user.username,
+              encryption_salt: me.user.encryption_salt,
+            });
+          }
+          router.replace('/notes');
+          return;
+        }
+      } catch {
+        // No valid server session — expected after sign-out
+      }
+
+      try {
+        const status = await auth.status();
+        if (!cancelled) {
+          // Only show "Create Vault" when no account exists yet
+          setIsRegister(!status.hasAccount);
+        }
+      } catch {
+        if (!cancelled) setIsRegister(false);
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    }
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -42,26 +78,36 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const result =
-        mode === 'register'
-          ? await auth.register(USERNAME, password)
-          : await auth.login(USERNAME, password);
+      let result;
 
-      localStorage.setItem(
-        'sn_session',
-        JSON.stringify({
-          username: result.user.username,
-          encryption_salt: result.user.encryption_salt,
-        }),
-      );
+      if (isRegister) {
+        try {
+          result = await auth.register(VAULT_USERNAME, password);
+        } catch (err) {
+          // Account already exists — use login instead
+          if (err instanceof ApiError && (err.status === 409 || err.status === 403)) {
+            result = await auth.login(VAULT_USERNAME, password);
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        result = await auth.login(VAULT_USERNAME, password);
+      }
 
+      saveStoredSession({
+        username: result.user.username,
+        encryption_salt: result.user.encryption_salt,
+      });
+
+      // Auto-unlock vault on /notes — skip the second password prompt
+      stashPendingUnlock(password);
+      setPassword('');
       router.replace('/notes');
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 403 || err.status === 404) {
-          setError(
-            'API not reachable. Check that api.abhiraj.xyz is running.',
-          );
+          setError('Cannot reach the server. Check your connection.');
         } else {
           setError(formatApiError(err));
         }
@@ -73,66 +119,51 @@ export default function LoginPage() {
     }
   };
 
-  const isRegister = mode === 'register';
+  const handleReset = () => {
+    void signOut();
+  };
+
+  if (!ready) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center login-bg">
+        <Loader2 size={24} className="animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center p-6 login-bg">
-      <div className="w-full max-w-[400px] animate-slide-up">
-        <div className="soft-card px-8 pt-10 pb-8 shadow-soft-lg">
-          <div className="flex flex-col items-center text-center">
-            <AppIcon size={56} className="mb-5 shadow-soft-md" />
+    <div className="min-h-dvh flex items-center justify-center p-4 sm:p-6 safe-all login-bg">
+      <div className="login-orb login-orb-1" aria-hidden />
+      <div className="login-orb login-orb-2" aria-hidden />
 
-            <h1 className="text-2xl font-bold text-brand-deep dark:text-gray-50 tracking-tight">
+      <div className="relative w-full max-w-[420px] animate-slide-up">
+        <div className="soft-card px-7 sm:px-9 pt-10 sm:pt-12 pb-[max(2.5rem,env(safe-area-inset-bottom))] shadow-soft-xl">
+          <div className="flex flex-col items-center text-center">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 rounded-3xl bg-accent/20 blur-xl scale-110" aria-hidden />
+              <AppIcon size={64} className="relative shadow-soft-lg ring-1 ring-white/20" />
+            </div>
+
+            <h1 className="font-display text-4xl text-brand-deep dark:text-gray-50 tracking-tight">
               Notes
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 mb-6">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2.5 mb-2 max-w-[260px] leading-relaxed">
               {isRegister
-                ? 'Create your vault with a master password (min. 12 characters).'
-                : 'Unlock your encrypted notes.'}
+                ? 'Create your encrypted vault with a master password.'
+                : 'Your private notes, encrypted on this device.'}
             </p>
+
+            <div className="flex items-center gap-2 mb-7">
+              <span className="premium-badge">
+                <Shield size={11} />
+                End-to-end encrypted
+              </span>
+            </div>
           </div>
-
-          {!isRegister && registrationOpen && (
-            <div className="flex gap-1 p-1 mb-6 -mt-2 bg-violet-50 dark:bg-violet-950/30 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => { setMode('login'); setError(null); }}
-                className="flex-1 py-2 text-sm font-medium text-white bg-accent rounded-xl shadow-soft transition-all"
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('register'); setError(null); }}
-                className="flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-xl transition-colors"
-              >
-                Create Account
-              </button>
-            </div>
-          )}
-
-          {isRegister && !registrationOpen && (
-            <div className="flex gap-1 p-1 mb-6 -mt-2 bg-violet-50 dark:bg-violet-950/30 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => { setMode('login'); setError(null); }}
-                className="flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-xl transition-colors"
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('register'); setError(null); }}
-                className="flex-1 py-2 text-sm font-medium text-white bg-accent rounded-xl shadow-soft transition-all"
-              >
-                Create Account
-              </button>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {error && (
-              <div className="flex items-start gap-2 p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded-2xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
+              <div className="flex items-start gap-2.5 p-3.5 bg-red-50/80 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40 rounded-2xl text-sm text-red-700 dark:text-red-400 animate-slide-up backdrop-blur-sm">
                 <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                 {error}
               </div>
@@ -141,9 +172,10 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="master-password"
-                className="block text-[11px] font-bold tracking-[0.12em] text-accent mb-2 uppercase"
+                className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.1em] text-gray-500 dark:text-gray-400 mb-2.5 uppercase"
               >
-                {isRegister ? 'Master Password' : 'Password'}
+                <Lock size={11} className="text-accent/70" />
+                Master Password
               </label>
               <div className="relative">
                 <input
@@ -151,7 +183,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isRegister ? 'At least 12 characters' : '••••••••••••'}
+                  placeholder={isRegister ? 'At least 12 characters' : 'Enter your password'}
                   autoComplete={isRegister ? 'new-password' : 'current-password'}
                   autoFocus
                   required
@@ -162,14 +194,14 @@ export default function LoginPage() {
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1.5 rounded-lg transition-colors"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {isRegister && (
-                <p className="text-xs text-gray-400 mt-2 leading-snug text-center">
-                  Encrypts your notes locally. Never sent to the server.
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2.5 leading-snug text-center">
+                  Your key never leaves this device.
                 </p>
               )}
             </div>
@@ -177,31 +209,36 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading || (isRegister && password.length > 0 && password.length < 12)}
-              className="soft-btn-primary w-full py-3.5 text-[15px] font-semibold shadow-glow"
+              className="soft-btn-primary w-full py-3.5 text-[15px] mt-1"
             >
               {isLoading ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  {isRegister ? 'Creating…' : 'Unlocking…'}
+                  {isRegister ? 'Setting up vault…' : 'Unlocking…'}
                 </>
               ) : isRegister ? (
-                'Create Account'
+                'Create Vault'
               ) : (
-                'Unlock'
+                'Unlock Vault'
               )}
             </button>
-
-            {!isRegister && registrationOpen && (
-              <button
-                type="button"
-                onClick={() => { setMode('register'); setError(null); }}
-                className="text-sm text-accent dark:text-accent-light hover:underline"
-              >
-                First time? Create your vault
-              </button>
-            )}
           </form>
+
+          {!isRegister && (
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={isLoading}
+              className="w-full mt-4 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors py-2"
+            >
+              Reset app
+            </button>
+          )}
         </div>
+
+        <p className="text-center text-[11px] text-gray-400 dark:text-gray-600 mt-6 tracking-wide">
+          Zero-knowledge · Local encryption · Syncs securely
+        </p>
       </div>
     </div>
   );

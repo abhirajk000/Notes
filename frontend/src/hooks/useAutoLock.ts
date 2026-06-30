@@ -23,10 +23,9 @@ const USER_EVENTS: (keyof DocumentEventMap)[] = [
 /**
  * Auto-lock hook.
  *
- * Triggers `onLock` when:
- *  1. The user has been idle for `idleMs` milliseconds (default 2 min).
- *  2. `document.visibilityState` becomes 'hidden' (tab switch, screen off,
- *     app backgrounded on mobile).
+ * Triggers `onLock` when the user has been idle for `idleMs` milliseconds
+ * (default 2 min). Switching apps or tabs does NOT lock immediately — the
+ * idle timer keeps running in the background.
  *
  * Returns `resetTimer()` so the consumer can manually reset the idle clock
  * (e.g. when the user explicitly interacts with a note save operation).
@@ -58,25 +57,6 @@ export function useAutoLock({
       onLockRef.current();
     }, idleMs);
   }, [enabled, idleMs, clearTimer]);
-
-  // ── Visibility change listener ───────────────────────────────
-  useEffect(() => {
-    if (!enabled) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // Lock immediately when the tab/window is hidden.
-        clearTimer();
-        onLockRef.current();
-      } else {
-        // Tab became visible again — restart the idle clock.
-        resetTimer();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [enabled, resetTimer, clearTimer]);
 
   // ── Idle activity listeners ──────────────────────────────────
   useEffect(() => {

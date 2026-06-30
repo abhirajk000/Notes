@@ -169,16 +169,35 @@ sudo systemctl reload caddy
 
 ## 7. Vercel frontend configuration
 
-In Vercel → Project → Settings → Environment Variables:
+The frontend proxies API calls server-side (no browser CORS). In **Vercel → Project → Settings → Environment Variables**:
 
-```
-NEXT_PUBLIC_API_URL=https://api.notes.example.com
+| Variable | Value | Environments |
+|----------|-------|--------------|
+| `BACKEND_URL` | `https://api.abhiraj.xyz` | Production, Preview, Development |
+
+**Do not** set `NEXT_PUBLIC_API_URL` in production — the browser uses same-origin `/api/*`, and the Next.js server forwards to `BACKEND_URL`.
+
+Redeploy after saving env vars:
+
+```bash
+cd frontend
+vercel env add BACKEND_URL production   # paste: https://api.abhiraj.xyz
+vercel --prod
 ```
 
-Redeploy after setting. The browser will send cookies cross-origin because:
-- Go CORS reflects the exact Vercel origin (not `*`)
-- `Access-Control-Allow-Credentials: true`
-- Frontend uses `fetch(..., { credentials: 'include' })`
+Or trigger redeploy from the Vercel dashboard.
+
+Verify from your machine:
+
+```bash
+curl -s https://api.abhiraj.xyz/health
+# {"ok":true,"ts":"..."}
+
+curl -s https://notes.abhiraj.xyz/api/auth/status
+# {"ok":true,"data":{"registrationOpen":true,"maxUsers":1}}
+```
+
+If you see **502** or *"Cannot reach the notes API"* on Vercel, either `BACKEND_URL` is missing or the Go API on the VPS is down.
 
 ---
 

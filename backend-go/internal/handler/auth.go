@@ -270,7 +270,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Logout — POST /api/auth/logout
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
+	c := &http.Cookie{
 		Name:     "token",
 		Value:    "",
 		MaxAge:   -1,
@@ -278,7 +278,11 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.production,
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
-	})
+	}
+	if h.cookieDomain != "" {
+		c.Domain = h.cookieDomain
+	}
+	http.SetCookie(w, c)
 	sendSuccess(w, map[string]any{"message": "Logged out successfully."})
 }
 
@@ -292,6 +296,7 @@ func (h *AuthHandler) Status(w http.ResponseWriter, r *http.Request) {
 	}
 	sendSuccess(w, map[string]any{
 		"registrationOpen": count < h.maxUsers,
+		"hasAccount":       count > 0,
 		"maxUsers":         h.maxUsers,
 	})
 }

@@ -6,16 +6,15 @@ import {
   useRef,
   FormEvent,
 } from 'react';
-import { Fingerprint, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Fingerprint, Eye, EyeOff, AlertCircle, Loader2, Shield } from 'lucide-react';
 import { AppIcon } from './AppIcon';
 
 interface LockScreenProps {
-  username: string;
   isBiometricEnabled: boolean;
   isBiometricSupported: boolean;
   onUnlock: (password: string) => Promise<void>;
   onBiometricUnlock: () => Promise<string>;
-  onSignOut: () => void;
+  onSignOut?: () => void;
   isVisible: boolean;
 }
 
@@ -23,7 +22,6 @@ type LockMode = 'biometric' | 'password';
 type UnlockState = 'idle' | 'biometric-pending' | 'password-pending' | 'error';
 
 export function LockScreen({
-  username,
   isBiometricEnabled,
   isBiometricSupported,
   onUnlock,
@@ -97,38 +95,44 @@ export function LockScreen({
   return (
     <div
       className={`
-        fixed inset-0 z-50 flex items-center justify-center p-4
-        bg-violet-50/60 dark:bg-violet-950/40 lock-backdrop
+        fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 safe-x
+        bg-surface/80 dark:bg-surface-dark/90 lock-backdrop
         transition-opacity duration-300
         ${isVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
       `}
     >
-      <div className="animate-slide-up w-full max-w-sm">
-        <div className="soft-card overflow-hidden shadow-soft-lg">
+      <div className="animate-slide-up w-full max-w-sm sm:mx-auto">
+        <div className="soft-card overflow-hidden shadow-soft-xl rounded-t-3xl sm:rounded-3xl max-h-[92dvh] overflow-y-auto mobile-scroll">
 
-          <div className="flex flex-col items-center pt-10 pb-6 px-8 border-b border-violet-100/60 dark:border-violet-900/20">
-            <AppIcon size={64} className="mb-5 shadow-soft-md" />
+          <div className="flex flex-col items-center pt-10 pb-7 px-8 border-b border-violet-100/40 dark:border-violet-900/20 bg-gradient-to-b from-violet-50/50 to-transparent dark:from-violet-950/20">
+            <div className="relative mb-5">
+              <div className="absolute inset-0 rounded-3xl bg-accent/15 blur-xl scale-110" aria-hidden />
+              <AppIcon size={56} className="relative shadow-soft-md" />
+            </div>
 
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50 mb-1">
-              Notes
+            <h1 className="font-display text-2xl text-gray-900 dark:text-gray-50 mb-1">
+              Vault Locked
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Locked for{' '}
-              <span className="font-medium text-gray-700 dark:text-gray-300">{username}</span>
+              Authenticate to access your notes
             </p>
+            <span className="premium-badge mt-4">
+              <Shield size={11} />
+              Encrypted locally
+            </span>
           </div>
 
-          <div className="px-8 py-6">
+          <div className="px-8 py-7">
             {error && (
-              <div className="flex items-start gap-2.5 mb-5 p-3.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-2xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
+              <div className="flex items-start gap-2.5 mb-5 p-3.5 bg-red-50/80 dark:bg-red-900/20 border border-red-200/60 dark:border-red-800/40 rounded-2xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
                 <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                 <p className="leading-snug">{error}</p>
               </div>
             )}
 
             {mode === 'biometric' && (
-              <div className="flex flex-col items-center gap-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+              <div className="flex flex-col items-center gap-5">
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed">
                   Use Touch ID, Face ID, or your device PIN to unlock.
                 </p>
 
@@ -136,31 +140,32 @@ export function LockScreen({
                   onClick={handleBiometricUnlock}
                   disabled={isBusy}
                   className={`
-                    relative w-20 h-20 rounded-full
-                    bg-accent-muted dark:bg-accent-muted-dark
-                    border-2 border-violet-200 dark:border-violet-700
+                    relative w-[88px] h-[88px] rounded-full
+                    bg-gradient-to-b from-violet-100 to-violet-50
+                    dark:from-violet-950/60 dark:to-violet-900/40
+                    border border-violet-200/60 dark:border-violet-700/40
                     flex items-center justify-center
-                    transition-transform active:scale-95
+                    transition-transform active:scale-95 shadow-card
                     disabled:opacity-60 disabled:cursor-not-allowed
-                    ${!isBusy ? 'biometric-pulse hover:bg-violet-100 dark:hover:bg-violet-900/40' : ''}
+                    ${!isBusy ? 'biometric-pulse hover:shadow-card-hover' : ''}
                   `}
                 >
                   {unlockState === 'biometric-pending' ? (
-                    <Loader2 size={30} className="text-accent animate-spin" />
+                    <Loader2 size={32} className="text-accent animate-spin" />
                   ) : (
-                    <Fingerprint size={34} className="text-accent dark:text-accent-light" />
+                    <Fingerprint size={36} className="text-accent dark:text-accent-light" />
                   )}
                 </button>
 
-                <p className="text-xs text-gray-400 dark:text-gray-500">
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
                   {unlockState === 'biometric-pending'
                     ? 'Waiting for biometric…'
-                    : 'Touch to unlock'}
+                    : 'Tap to unlock'}
                 </p>
 
                 <button
                   onClick={() => { setMode('password'); clearError(); }}
-                  className="text-sm text-accent dark:text-accent-light hover:underline mt-1"
+                  className="text-sm text-accent dark:text-accent-light hover:underline mt-1 font-medium"
                 >
                   Use password instead
                 </button>
@@ -168,9 +173,9 @@ export function LockScreen({
             )}
 
             {mode === 'password' && (
-              <form onSubmit={handlePasswordUnlock} className="flex flex-col gap-4">
+              <form onSubmit={handlePasswordUnlock} className="flex flex-col gap-5">
                 <div>
-                  <label className="block text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 mb-2 uppercase">
+                  <label className="block text-[11px] font-semibold tracking-[0.1em] text-gray-500 dark:text-gray-400 mb-2.5 uppercase">
                     Master Password
                   </label>
                   <div className="relative">
@@ -198,7 +203,7 @@ export function LockScreen({
                 <button
                   type="submit"
                   disabled={!password.trim() || isBusy}
-                  className="soft-btn-primary w-full py-3 shadow-glow"
+                  className="soft-btn-primary w-full py-3.5"
                 >
                   {unlockState === 'password-pending' ? (
                     <>
@@ -206,7 +211,7 @@ export function LockScreen({
                       Unlocking…
                     </>
                   ) : (
-                    'Unlock'
+                    'Unlock Vault'
                   )}
                 </button>
 
@@ -214,7 +219,7 @@ export function LockScreen({
                   <button
                     type="button"
                     onClick={() => { setMode('biometric'); clearError(); }}
-                    className="flex items-center justify-center gap-1.5 text-sm text-accent dark:text-accent-light hover:underline"
+                    className="flex items-center justify-center gap-1.5 text-sm text-accent dark:text-accent-light hover:underline font-medium"
                   >
                     <Fingerprint size={14} />
                     Use biometric instead
@@ -224,13 +229,16 @@ export function LockScreen({
             )}
           </div>
 
-          <div className="px-8 pb-6 flex justify-center">
-            <button
-              onClick={onSignOut}
-              className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-            >
-              Sign out
-            </button>
+          <div className="px-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex justify-center">
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors py-2"
+              >
+                Reset app
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -239,12 +247,11 @@ export function LockScreen({
 }
 
 interface BiometricSetupProps {
-  username: string;
   onEnable: (password: string) => Promise<void>;
   onDismiss: () => void;
 }
 
-export function BiometricSetup({ username, onEnable, onDismiss }: BiometricSetupProps) {
+export function BiometricSetup({ onEnable, onDismiss }: BiometricSetupProps) {
   const [password, setPassword] = useState('');
   const [state, setState] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -264,15 +271,15 @@ export function BiometricSetup({ username, onEnable, onDismiss }: BiometricSetup
 
   if (state === 'success') {
     return (
-      <div className="p-4 rounded-2xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40 text-sm text-green-700 dark:text-green-400">
-        Biometric unlock enabled for <strong>{username}</strong>. You can now use Face ID / Touch ID.
+      <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-800/40 text-sm text-emerald-700 dark:text-emerald-400">
+        Biometric unlock enabled. You can now use Face ID / Touch ID.
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <p className="text-sm text-gray-600 dark:text-gray-400">
+      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
         Enter your master password once to enable biometric unlock. Your password will be securely wrapped by the device's secure enclave.
       </p>
       {error && (
