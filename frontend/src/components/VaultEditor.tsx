@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Trash2, Save, CreditCard } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Trash2, Save, CreditCard, Pencil, X } from 'lucide-react';
 import { CreditCardVaultItem } from './CreditCardVaultItem';
 import type { CreditCardData, PlainVaultCard } from '../types/vault';
 import { EMPTY_CARD } from '../types/vault';
@@ -16,6 +16,30 @@ interface VaultEditorProps {
 export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorProps) {
   const [draft, setDraft] = useState<CreditCardData>(EMPTY_CARD);
   const [isDirty, setIsDirty] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const draftRef = useRef(draft);
+  const isDirtyRef = useRef(false);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  useEffect(() => {
+    const activeCard = card;
+    if (!activeCard) return;
+
+    return () => {
+      if (!isEditing) return;
+      const pending = draftRef.current;
+      if (!isDirtyRef.current || !pending.cardName.trim()) return;
+      onSave(pending);
+      isDirtyRef.current = false;
+    };
+  }, [card?.id, isEditing, onSave]);
 
   useEffect(() => {
     if (card) {
@@ -27,15 +51,47 @@ export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorPro
         cvv: card.cvv,
       });
       setIsDirty(false);
+      setIsEditing(!card.cardName.trim());
     } else {
       setDraft(EMPTY_CARD);
       setIsDirty(false);
+      setIsEditing(false);
     }
   }, [card?.id]);
 
   const update = (patch: Partial<CreditCardData>) => {
-    setDraft((d) => ({ ...d, ...patch }));
-    setIsDirty(true);
+    setDraft((d) => {
+      const next = { ...d, ...patch };
+      draftRef.current = next;
+      if (isEditing && next.cardName.trim()) {
+        onSave(next);
+        isDirtyRef.current = false;
+        setIsDirty(false);
+      } else {
+        isDirtyRef.current = true;
+        setIsDirty(true);
+      }
+      return next;
+    });
+  };
+
+  const handleSave = () => {
+    onSave(draft);
+    setIsDirty(false);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    if (!card) return;
+    setDraft({
+      cardName: card.cardName,
+      cardHolder: card.cardHolder,
+      cardNumber: card.cardNumber,
+      expiry: card.expiry,
+      cvv: card.cvv,
+    });
+    setIsDirty(false);
+    setIsEditing(false);
   };
 
   if (!card) {
@@ -58,29 +114,67 @@ export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorPro
     );
   }
 
+  const viewData: CreditCardData = {
+    cardName: card.cardName,
+    cardHolder: card.cardHolder,
+    cardNumber: card.cardNumber,
+    expiry: card.expiry,
+    cvv: card.cvv,
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-editor dark:bg-editor-dark relative">
       <div className="absolute inset-0 bg-mesh-light dark:bg-mesh-dark opacity-30 pointer-events-none" aria-hidden />
 
       <div className="relative flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 border-b border-violet-100/40 dark:border-violet-900/15 flex-shrink-0 bg-white/50 dark:bg-white/[0.02] backdrop-blur-sm">
         <span className="text-xs text-gray-400 dark:text-gray-500 mr-auto truncate font-medium">
-          {isSaving ? (
-            <span className="text-accent">Saving…</span>
-          ) : isDirty ? (
-            'Unsaved changes'
+          {isEditing ? (
+            isSaving ? (
+              <span className="text-accent">Saving…</span>
+            ) : isDirty ? (
+              'Unsaved changes'
+            ) : (
+              'Editing'
+            )
           ) : (
-            'Saved'
+            card.cardName || 'Saved card'
           )}
         </span>
-        <button
-          type="button"
-          onClick={() => onSave(draft)}
-          disabled={isSaving || !draft.cardName.trim()}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-b from-accent-light to-accent hover:from-accent hover:to-accent-dark text-white disabled:opacity-50 transition-all shadow-soft active:scale-[0.98] min-h-[44px]"
-        >
-          <Save size={14} />
-          Save
-        </button>
+
+        {isEditing ? (
+          <>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving || !draft.cardName.trim()}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-b from-accent-light to-accent hover:from-accent hover:to-accent-dark text-white disabled:opacity-50 transition-all shadow-soft active:scale-[0.98] min-h-[44px]"
+            >
+              <Save size={14} />
+              Save
+            </button>
+            {card.cardName.trim() && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                disabled={isSaving}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-white/80 dark:hover:bg-white/[0.06] transition-all min-h-[44px]"
+              >
+                <X size={14} />
+                Cancel
+              </button>
+            )}
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white/80 dark:bg-white/[0.06] hover:bg-white dark:hover:bg-white/[0.1] text-accent dark:text-accent-light border border-violet-200/50 dark:border-violet-800/30 transition-all shadow-soft active:scale-[0.98] min-h-[44px]"
+          >
+            <Pencil size={14} />
+            Edit
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onDelete}
@@ -92,19 +186,25 @@ export function VaultEditor({ card, isSaving, onSave, onDelete }: VaultEditorPro
       </div>
 
       <div className="relative flex-1 overflow-y-auto mobile-scroll px-4 sm:px-8 md:px-16 lg:px-24 py-6 sm:py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-        <div className="mb-12 flex justify-center">
-          <CreditCardVaultItem {...draft} />
+        <div className="mb-10 flex justify-center">
+          <CreditCardVaultItem {...(isEditing ? draft : viewData)} />
         </div>
 
-        <div className="max-w-md mx-auto grid gap-5">
-          <Field label="Card Name" value={draft.cardName} onChange={(v) => update({ cardName: v })} placeholder="SBI Cashback Card" />
-          <Field label="Card Holder" value={draft.cardHolder} onChange={(v) => update({ cardHolder: v })} placeholder="ABHIRAJ K" />
-          <Field label="Card Number" value={draft.cardNumber} onChange={(v) => update({ cardNumber: v })} placeholder="4111 1111 1111 1111" mono />
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Expiry" value={draft.expiry} onChange={(v) => update({ expiry: v })} placeholder="MM/YY" mono />
-            <Field label="CVV" value={draft.cvv} onChange={(v) => update({ cvv: v })} placeholder="•••" mono secret />
+        {isEditing ? (
+          <div className="max-w-md mx-auto grid gap-5 animate-fade-in">
+            <Field label="Card Name" value={draft.cardName} onChange={(v) => update({ cardName: v })} placeholder="SBI Cashback Card" />
+            <Field label="Card Holder" value={draft.cardHolder} onChange={(v) => update({ cardHolder: v })} placeholder="ABHIRAJ K" />
+            <Field label="Card Number" value={draft.cardNumber} onChange={(v) => update({ cardNumber: v })} placeholder="4111 1111 1111 1111" mono />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Expiry" value={draft.expiry} onChange={(v) => update({ expiry: v })} placeholder="MM/YY" mono />
+              <Field label="CVV" value={draft.cvv} onChange={(v) => update({ cvv: v })} placeholder="•••" mono secret />
+            </div>
           </div>
-        </div>
+        ) : (
+          <p className="text-center text-sm text-gray-400 dark:text-gray-500 max-w-xs mx-auto leading-relaxed">
+            Tap the card to copy details, or use <strong className="text-gray-500 dark:text-gray-400">Edit</strong> to update fields.
+          </p>
+        )}
       </div>
     </div>
   );

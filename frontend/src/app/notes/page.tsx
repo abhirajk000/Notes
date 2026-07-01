@@ -8,48 +8,52 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
-import { Loader2 } from 'lucide-react';
-import { AppIcon } from '../../components/AppIcon';
 import { AppShell } from '../../components/AppShell';
 import { LockScreen } from '../../components/LockScreen';
 import { APP_DISPLAY_NAME } from '../../lib/config';
 import { useAutoLock } from '../../hooks/useAutoLock';
 import { useWebAuthn } from '../../hooks/useWebAuthn';
 import { CryptoWorkerClient } from '../../lib/cryptoWorkerClient';
+import { loadPlainNotes, loadPlainVaultCardsFast } from '../../lib/dataLoader';
 import { SyncManager, useSyncStatus } from '../../lib/syncManager';
 import { auth } from '../../lib/api';
 import {
   getStoredSession,
-  clearLocalSession,
   takePendingUnlock,
-  signOut,
   type StoredSession,
 } from '../../lib/session';
 import {
-  getAllNotes,
   saveNote,
   markForDeletion,
+  saveVaultCardRow,
 } from '../../lib/db';
 import {
-  loadPlainVaultCards,
   saveVaultCard,
   deleteVaultCard,
 } from '../../lib/vaultCards';
 import type { PlainNote, LocalNote } from '../../types/notes';
 import type { PlainVaultCard, CreditCardData } from '../../types/vault';
-import { EMPTY_CARD } from '../../types/vault';
+import { EMPTY_CARD, cardPayload } from '../../types/vault';
 
-// ── App lock states ────────────────────────────────────────────
-type AppState = 'checking' | 'locked' | 'unlocking' | 'unlocked';
+type AppState = 'locked' | 'unlocking' | 'unlocked';
+
+function readInitialSession(): StoredSession | null {
+  if (typeof window === 'undefined') return null;
+  return getStoredSession();
+}
 
 export default function NotesPage() {
   const router = useRouter();
-  const [appState, setAppState] = useState<AppState>('checking');
-  const [session, setSession] = useState<StoredSession | null>(null);
+  const initialSession = readInitialSession();
+  const [appState, setAppState] = useState<AppState>(
+    initialSession ? 'locked' : 'locked',
+  );
+  const [session, setSession] = useState<StoredSession | null>(initialSession);
   const [notes, setNotes] = useState<PlainNote[]>([]);
   const [cards, setCards] = useState<PlainVaultCard[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [isDataLoading, setIsDataLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingCard, setIsSavingCard] = useState(false);
   const syncStatusHook = useSyncStatus();
@@ -57,8 +61,16 @@ export default function NotesPage() {
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const webAuthn = useWebAuthn();
   const syncRef = useRef<SyncManager | null>(null);
+  const autoSelectedRef = useRef(false);
+  const bootstrapDoneRef = useRef(false);
+  const appStateRef = useRef(appState);
+  appStateRef.current = appState;
 
-  // ── Theme init ───────────────────────────────────────────────
+  useEffect(() => {
+    CryptoWorkerClient.warmUp();
+    router.prefetch('/login');
+  }, [router]);
+
   useEffect(() => {
     const saved = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -67,13 +79,8 @@ export default function NotesPage() {
     document.documentElement.classList.toggle('dark', dark);
   }, []);
 
-  // ── Check session on mount ───────────────────────────────────
-
-  // ── Auto-lock callback ───────────────────────────────────────
   const handleLock = useCallback(() => {
-    if (appState !== 'unlocked') return;
-    // Wipe the in-memory key from the worker without terminating it
-    // (we send CLEAR_KEY so the same worker can accept DERIVE_KEY on unlock)
+    if (appStateRef.current !== 'unlocked') return;
     try {
       const worker = CryptoWorkerClient.getInstance();
       void worker.destroy().catch(() => {});
@@ -82,8 +89,9 @@ export default function NotesPage() {
     setCards([]);
     setSelectedNoteId(null);
     setSelectedCardId(null);
+    autoSelectedRef.current = false;
     setAppState('locked');
-  }, [appState]);
+  }, []);
 
   useAutoLock({
     idleMs: 2 * 60 * 1000,
@@ -91,64 +99,45 @@ export default function NotesPage() {
     enabled: appState === 'unlocked',
   });
 
-  // ── Decrypt and load all notes ───────────────────────────────
-  const loadNotes = useCallback(async () => {
-    const crypto = CryptoWorkerClient.getInstance();
-    const localNotes = await getAllNotes();
-    const decrypted: PlainNote[] = [];
-
-    for (const note of localNotes) {
-      if (note.sync_status === 'pending_delete') continue;
-      try {
-        const { title, content } = await crypto.decrypt(
-          note.encrypted_title,
-          note.encrypted_content,
-          note.iv,
-        );
-        decrypted.push({
-          id: note.id,
-          title,
-          content,
-          is_pinned: note.is_pinned,
-          updated_at: note.updated_at,
-          created_at: note.created_at,
-        });
-      } catch {
-        // Corrupted or wrong-key note — skip silently
-      }
+  const applyLoadedData = useCallback((loadedNotes: PlainNote[], loadedCards: PlainVaultCard[]) => {
+    setNotes(loadedNotes);
+    setCards(loadedCards);
+    if (!autoSelectedRef.current && loadedNotes.length > 0) {
+      autoSelectedRef.current = true;
+      setSelectedNoteId(loadedNotes[0].id);
     }
-
-    setNotes(
-      decrypted.sort(
-        (a, b) =>
-          Number(b.is_pinned) - Number(a.is_pinned) ||
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-      ),
-    );
   }, []);
 
-  const loadCards = useCallback(async () => {
-    const decrypted = await loadPlainVaultCards();
-    setCards(
-      decrypted.sort(
-        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-      ),
-    );
-  }, []);
+  const loadVaultData = useCallback(async () => {
+    setIsDataLoading(true);
+    try {
+      const [loadedNotes, loadedCards] = await Promise.all([
+        loadPlainNotes(),
+        loadPlainVaultCardsFast(),
+      ]);
+      applyLoadedData(loadedNotes, loadedCards);
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, [applyLoadedData]);
 
-  // ── Sync manager — reload notes after inbound sync ───────────
   useEffect(() => {
     if (appState !== 'unlocked') return;
     const manager = SyncManager.getInstance();
     syncRef.current = manager;
     return manager.onComplete(({ inboundCount, conflictCount }) => {
       if (inboundCount > 0 || conflictCount > 0) {
-        void loadNotes();
+        void loadVaultData();
       }
     });
-  }, [appState, loadNotes]);
+  }, [appState, loadVaultData]);
 
-  // ── Unlock with password ─────────────────────────────────────
+  const finishUnlock = useCallback(async () => {
+    setAppState('unlocked');
+    void SyncManager.getInstance().sync();
+    void loadVaultData();
+  }, [loadVaultData]);
+
   const handleUnlock = useCallback(
     async (password: string) => {
       if (!session) return;
@@ -158,9 +147,7 @@ export default function NotesPage() {
       try {
         const crypto = CryptoWorkerClient.getInstance();
         await crypto.deriveKey(password, session.encryption_salt);
-        await Promise.all([loadNotes(), loadCards()]);
-        setAppState('unlocked');
-        void SyncManager.getInstance().sync();
+        await finishUnlock();
       } catch (err) {
         setAppState('locked');
         const msg = err instanceof Error ? err.message : 'Unlock failed.';
@@ -168,24 +155,18 @@ export default function NotesPage() {
         throw err;
       }
     },
-    [session, loadNotes, loadCards],
+    [session, finishUnlock],
   );
 
-  // ── Bootstrap: verify server session + auto-unlock after login ──
   useEffect(() => {
+    if (bootstrapDoneRef.current) return;
+    bootstrapDoneRef.current = true;
+
     let cancelled = false;
 
     async function bootstrap() {
       const stored = getStoredSession();
       if (!stored) {
-        router.replace('/login');
-        return;
-      }
-
-      try {
-        await auth.me();
-      } catch {
-        await clearLocalSession();
         router.replace('/login');
         return;
       }
@@ -199,27 +180,38 @@ export default function NotesPage() {
         try {
           const crypto = CryptoWorkerClient.getInstance();
           await crypto.deriveKey(pending, stored.encryption_salt);
-          await Promise.all([loadNotes(), loadCards()]);
           if (!cancelled) {
             setAppState('unlocked');
             void SyncManager.getInstance().sync();
+            setIsDataLoading(true);
+            try {
+              const [loadedNotes, loadedCards] = await Promise.all([
+                loadPlainNotes(),
+                loadPlainVaultCardsFast(),
+              ]);
+              if (!cancelled) applyLoadedData(loadedNotes, loadedCards);
+            } finally {
+              if (!cancelled) setIsDataLoading(false);
+            }
           }
         } catch {
           if (!cancelled) setAppState('locked');
         }
-        return;
+      } else {
+        setAppState('locked');
       }
 
-      setAppState('locked');
+      void auth.me().catch(() => {
+        if (!cancelled) router.replace('/login');
+      });
     }
 
     void bootstrap();
     return () => {
       cancelled = true;
     };
-  }, [router, loadNotes, loadCards]);
+  }, [router, applyLoadedData]);
 
-  // ── Biometric unlock ─────────────────────────────────────────
   const handleBiometricUnlock = useCallback(async (): Promise<string> => {
     return webAuthn.authenticate();
   }, [webAuthn]);
@@ -232,8 +224,7 @@ export default function NotesPage() {
     [session, webAuthn],
   );
 
-  // ── New note ─────────────────────────────────────────────────
-  const handleNewNote = useCallback(() => {
+  const handleNewNote = useCallback(async () => {
     const id = uuidv4();
     const now = new Date().toISOString();
     const placeholder: PlainNote = {
@@ -241,16 +232,33 @@ export default function NotesPage() {
       title: '',
       content: '',
       is_pinned: false,
+      is_locked: false,
       updated_at: now,
       created_at: now,
     };
     setNotes((prev) => [placeholder, ...prev]);
     setSelectedNoteId(id);
+
+    try {
+      const crypto = CryptoWorkerClient.getInstance();
+      const { encryptedTitle, encryptedContent, iv } = await crypto.encrypt('', '');
+      await saveNote({
+        id,
+        encrypted_title: encryptedTitle,
+        encrypted_content: encryptedContent,
+        iv,
+        is_pinned: false,
+        is_locked: false,
+        updated_at: now,
+      });
+      void SyncManager.getInstance().sync();
+    } catch {
+      // debounced save from NoteEditor will retry
+    }
   }, []);
 
-  // ── Save note (debounced from NoteEditor) ────────────────────
   const handleSaveNote = useCallback(
-    async (patch: { title: string; content: string; is_pinned: boolean }) => {
+    async (patch: { title: string; content: string; is_pinned: boolean; is_locked: boolean }) => {
       if (!selectedNoteId) return;
       setIsSaving(true);
 
@@ -268,12 +276,12 @@ export default function NotesPage() {
           encrypted_content: encryptedContent,
           iv,
           is_pinned: patch.is_pinned,
+          is_locked: patch.is_locked,
           updated_at: now,
         };
 
         await saveNote(localNote);
 
-        // Update plaintext state in memory
         setNotes((prev) => {
           const updated = prev.map((n) =>
             n.id === selectedNoteId
@@ -295,7 +303,6 @@ export default function NotesPage() {
     [selectedNoteId],
   );
 
-  // ── Delete note ──────────────────────────────────────────────
   const handleDeleteNote = useCallback(async () => {
     if (!selectedNoteId) return;
     await markForDeletion(selectedNoteId);
@@ -304,15 +311,29 @@ export default function NotesPage() {
     void SyncManager.getInstance().sync();
   }, [selectedNoteId]);
 
-  // ── Toggle pin ───────────────────────────────────────────────
   const handleTogglePin = useCallback(async () => {
     const note = notes.find((n) => n.id === selectedNoteId);
     if (!note) return;
-    await handleSaveNote({ title: note.title, content: note.content, is_pinned: !note.is_pinned });
+    await handleSaveNote({
+      title: note.title,
+      content: note.content,
+      is_pinned: !note.is_pinned,
+      is_locked: note.is_locked,
+    });
   }, [notes, selectedNoteId, handleSaveNote]);
 
-  // ── Vault: new card ──────────────────────────────────────────
-  const handleAddCard = useCallback(() => {
+  const handleToggleLock = useCallback(async () => {
+    const note = notes.find((n) => n.id === selectedNoteId);
+    if (!note) return;
+    await handleSaveNote({
+      title: note.title,
+      content: note.content,
+      is_pinned: note.is_pinned,
+      is_locked: !note.is_locked,
+    });
+  }, [notes, selectedNoteId, handleSaveNote]);
+
+  const handleAddCard = useCallback(async () => {
     const id = uuidv4();
     const now = new Date().toISOString();
     const placeholder: PlainVaultCard = {
@@ -323,9 +344,23 @@ export default function NotesPage() {
     };
     setCards((prev) => [placeholder, ...prev]);
     setSelectedCardId(id);
+
+    try {
+      const crypto = CryptoWorkerClient.getInstance();
+      const { encryptedTitle, encryptedContent, iv } = await crypto.encrypt('', cardPayload(EMPTY_CARD));
+      await saveVaultCardRow({
+        id,
+        encrypted_title: encryptedTitle,
+        encrypted_content: encryptedContent,
+        iv,
+        updated_at: now,
+      });
+      void SyncManager.getInstance().sync();
+    } catch {
+      // saved on first edit
+    }
   }, []);
 
-  // ── Vault: save card ───────────────────────────────────────────
   const handleSaveCard = useCallback(
     async (data: CreditCardData) => {
       if (!selectedCardId) return;
@@ -343,6 +378,8 @@ export default function NotesPage() {
             (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
           );
         });
+
+        void SyncManager.getInstance().sync();
       } finally {
         setIsSavingCard(false);
       }
@@ -350,15 +387,14 @@ export default function NotesPage() {
     [selectedCardId],
   );
 
-  // ── Vault: delete card ───────────────────────────────────────
   const handleDeleteCard = useCallback(async () => {
     if (!selectedCardId) return;
     await deleteVaultCard(selectedCardId);
     setCards((prev) => prev.filter((c) => c.id !== selectedCardId));
     setSelectedCardId(null);
+    void SyncManager.getInstance().sync();
   }, [selectedCardId]);
 
-  // ── Dark mode toggle ─────────────────────────────────────────
   const handleToggleDark = useCallback(() => {
     setIsDark((d) => {
       const next = !d;
@@ -368,7 +404,6 @@ export default function NotesPage() {
     });
   }, []);
 
-  // ── Keyboard shortcuts ───────────────────────────────────────
   useEffect(() => {
     if (appState !== 'unlocked') return;
     const handler = (e: KeyboardEvent) => {
@@ -385,21 +420,18 @@ export default function NotesPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [appState, handleNewNote, handleLock]);
 
-  // ── Render ───────────────────────────────────────────────────
-
-  if (appState === 'checking') {
-    return <LoadingScreen />;
+  if (!session) {
+    return null;
   }
 
   return (
     <div className="relative h-dvh w-dvw overflow-hidden">
-      {/* ── App shell (always mounted so layout doesn't jump on unlock) ── */}
       <AppShell
         notes={notes}
         selectedNoteId={selectedNoteId}
         cards={cards}
         selectedCardId={selectedCardId}
-        isLoading={appState === 'unlocking'}
+        isLoading={isDataLoading}
         isSyncing={syncStatusHook.phase !== 'idle' && syncStatusHook.phase !== 'error'}
         syncStatus={syncStatusHook}
         onSyncNow={syncStatusHook.syncNow}
@@ -414,6 +446,7 @@ export default function NotesPage() {
         onSaveNote={handleSaveNote}
         onDeleteNote={handleDeleteNote}
         onTogglePin={handleTogglePin}
+        onToggleLock={handleToggleLock}
         onSelectCard={setSelectedCardId}
         onAddCard={handleAddCard}
         onSaveCard={handleSaveCard}
@@ -427,29 +460,10 @@ export default function NotesPage() {
         isBiometricSupported={webAuthn.isSupported}
         onUnlock={handleUnlock}
         onBiometricUnlock={handleBiometricUnlock}
-        onSignOut={() => void signOut()}
+        unlockError={unlockError}
         isVisible={appState === 'locked' || appState === 'unlocking'}
+        isUnlocking={appState === 'unlocking'}
       />
-    </div>
-  );
-}
-
-// ── Helpers ────────────────────────────────────────────────────
-
-function LoadingScreen() {
-  return (
-    <div className="h-dvh w-dvw flex items-center justify-center bg-surface dark:bg-surface-dark relative overflow-hidden">
-      <div className="absolute inset-0 bg-mesh-light dark:bg-mesh-dark opacity-60" aria-hidden />
-      <div className="relative flex flex-col items-center gap-5 animate-fade-in">
-        <div className="relative">
-          <div className="absolute inset-0 rounded-3xl bg-accent/20 blur-xl scale-125 animate-soft-pulse" aria-hidden />
-          <AppIcon size={60} className="relative shadow-soft-lg" />
-        </div>
-        <div className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-gray-400 font-medium">
-          <Loader2 size={15} className="animate-spin text-accent" />
-          Unlocking vault…
-        </div>
-      </div>
     </div>
   );
 }

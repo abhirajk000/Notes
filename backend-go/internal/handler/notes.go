@@ -31,6 +31,7 @@ type noteRow struct {
 	IV               string    `json:"iv"`
 	SyncStatus       string    `json:"sync_status"`
 	IsPinned         bool      `json:"is_pinned"`
+	IsLocked         bool      `json:"is_locked"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -48,6 +49,7 @@ type syncItem struct {
 	EncryptedContent string    `json:"encrypted_content"`
 	IV               string    `json:"iv"`
 	IsPinned         bool      `json:"is_pinned"`
+	IsLocked         bool      `json:"is_locked"`
 	UpdatedAt        time.Time `json:"updated_at"`
 	// Deleted signals the server to hard-delete this note.
 	// LWW applies: deletion is only committed if the server version is not newer.
@@ -63,7 +65,7 @@ func (h *NotesHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.QueryContext(r.Context(), `
 		SELECT id, user_id, encrypted_title, encrypted_content, iv,
-		       sync_status, is_pinned, created_at, updated_at
+		       sync_status, is_pinned, is_locked, created_at, updated_at
 		FROM   notes
 		WHERE  user_id = $1
 		ORDER  BY is_pinned DESC, updated_at DESC`, userID)
@@ -78,7 +80,7 @@ func (h *NotesHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var n noteRow
 		if err = rows.Scan(&n.ID, &n.UserID, &n.EncryptedTitle, &n.EncryptedContent,
-			&n.IV, &n.SyncStatus, &n.IsPinned, &n.CreatedAt, &n.UpdatedAt); err != nil {
+			&n.IV, &n.SyncStatus, &n.IsPinned, &n.IsLocked, &n.CreatedAt, &n.UpdatedAt); err != nil {
 			log.Printf("[notes] list scan: %v", err)
 			sendError(w, "Internal server error.", http.StatusInternalServerError)
 			return
@@ -155,7 +157,7 @@ func (h *NotesHandler) Batch(w http.ResponseWriter, r *http.Request) {
 	// Build a parameterised ANY($1) query using PostgreSQL's array syntax
 	rows, err := h.db.QueryContext(r.Context(), `
 		SELECT id, user_id, encrypted_title, encrypted_content, iv,
-		       sync_status, is_pinned, created_at, updated_at
+		       sync_status, is_pinned, is_locked, created_at, updated_at
 		FROM   notes
 		WHERE  user_id = $1
 		  AND  id = ANY($2::uuid[])`, userID, stringSliceToPGArray(body.IDs))
@@ -170,7 +172,7 @@ func (h *NotesHandler) Batch(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var n noteRow
 		if err = rows.Scan(&n.ID, &n.UserID, &n.EncryptedTitle, &n.EncryptedContent,
-			&n.IV, &n.SyncStatus, &n.IsPinned, &n.CreatedAt, &n.UpdatedAt); err != nil {
+			&n.IV, &n.SyncStatus, &n.IsPinned, &n.IsLocked, &n.CreatedAt, &n.UpdatedAt); err != nil {
 			sendError(w, "Internal server error.", http.StatusInternalServerError)
 			return
 		}
@@ -287,14 +289,15 @@ func (h *NotesHandler) processUpsert(
 
 	var returnedID string
 	err := tx.QueryRowContext(r.Context(), `
-		INSERT INTO notes (id, user_id, encrypted_title, encrypted_content, iv, sync_status, is_pinned, updated_at)
-		VALUES            ($1, $2,      $3,               $4,                $5, 'synced',     $6,        $7)
+		INSERT INTO notes (id, user_id, encrypted_title, encrypted_content, iv, sync_status, is_pinned, is_locked, updated_at)
+		VALUES            ($1, $2,      $3,               $4,                $5, 'synced',     $6,        $7,       $8)
 		ON CONFLICT (id) DO UPDATE
 		  SET encrypted_title   = EXCLUDED.encrypted_title,
 		      encrypted_content = EXCLUDED.encrypted_content,
 		      iv                = EXCLUDED.iv,
 		      sync_status       = 'synced',
 		      is_pinned         = EXCLUDED.is_pinned,
+		      is_locked         = EXCLUDED.is_locked,
 		      updated_at        = EXCLUDED.updated_at
 		  -- LWW gate: only overwrite if client version is strictly newer
 		  WHERE notes.user_id   = $2
@@ -302,7 +305,7 @@ func (h *NotesHandler) processUpsert(
 		RETURNING id`,
 		item.ID, userID,
 		item.EncryptedTitle, item.EncryptedContent, item.IV,
-		item.IsPinned, item.UpdatedAt,
+		item.IsPinned, item.IsLocked, item.UpdatedAt,
 	).Scan(&returnedID)
 
 	switch err {
@@ -314,13 +317,13 @@ func (h *NotesHandler) processUpsert(
 		var serverNote noteRow
 		qErr := tx.QueryRowContext(r.Context(), `
 			SELECT id, user_id, encrypted_title, encrypted_content, iv,
-			       sync_status, is_pinned, created_at, updated_at
+			       sync_status, is_pinned, is_locked, created_at, updated_at
 			FROM   notes
 			WHERE  id = $1 AND user_id = $2 LIMIT 1`,
 			item.ID, userID,
 		).Scan(&serverNote.ID, &serverNote.UserID, &serverNote.EncryptedTitle,
 			&serverNote.EncryptedContent, &serverNote.IV, &serverNote.SyncStatus,
-			&serverNote.IsPinned, &serverNote.CreatedAt, &serverNote.UpdatedAt)
+			&serverNote.IsPinned, &serverNote.IsLocked, &serverNote.CreatedAt, &serverNote.UpdatedAt)
 		if qErr == sql.ErrNoRows {
 			// Note doesn't exist server-side at all (e.g. race condition)
 			*skipped = append(*skipped, item.ID)
@@ -374,13 +377,13 @@ func (h *NotesHandler) processDeletion(
 	var serverNote noteRow
 	qErr := tx.QueryRowContext(r.Context(), `
 		SELECT id, user_id, encrypted_title, encrypted_content, iv,
-		       sync_status, is_pinned, created_at, updated_at
+		       sync_status, is_pinned, is_locked, created_at, updated_at
 		FROM   notes
 		WHERE  id = $1 AND user_id = $2 LIMIT 1`,
 		item.ID, userID,
 	).Scan(&serverNote.ID, &serverNote.UserID, &serverNote.EncryptedTitle,
 		&serverNote.EncryptedContent, &serverNote.IV, &serverNote.SyncStatus,
-		&serverNote.IsPinned, &serverNote.CreatedAt, &serverNote.UpdatedAt)
+		&serverNote.IsPinned, &serverNote.IsLocked, &serverNote.CreatedAt, &serverNote.UpdatedAt)
 
 	switch qErr {
 	case nil:

@@ -40,6 +40,7 @@ func main() {
 		cfg.AllowedUsername, cfg.MaxUsers,
 	)
 	notesH := handler.NewNotesHandler(pool)
+	vaultH := handler.NewVaultCardsHandler(pool)
 
 	// ── Middleware chain helpers ────────────────────────────────
 	corsM := middleware.CORS(cfg.CORSOrigins)
@@ -82,6 +83,12 @@ func main() {
 	mux.Handle("POST /api/notes/batch", authChain(notesH.Batch))
 	mux.Handle("POST /api/notes/sync", authChain(notesH.Sync))
 	mux.Handle("DELETE /api/notes/{id}", authChain(notesH.Delete))
+
+	// Vault card routes (session required)
+	mux.Handle("GET /api/vault/cards/meta", authChain(vaultH.Meta))
+	mux.Handle("POST /api/vault/cards/batch", authChain(vaultH.Batch))
+	mux.Handle("POST /api/vault/cards/sync", authChain(vaultH.Sync))
+	mux.Handle("DELETE /api/vault/cards/{id}", authChain(vaultH.Delete))
 
 	// ── HTTP server with hardened timeouts ──────────────────────
 	srv := &http.Server{

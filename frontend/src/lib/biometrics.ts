@@ -5,16 +5,18 @@
  * enforcement. Wraps the PRF-based key-wrapping implementation in webauthn.ts.
  *
  * Requirements:
- *  - HTTPS (Vercel production) or localhost for Secure Context
- *  - navigator.credentials API (Face ID / Touch ID / Windows Hello / PIN)
+ *  - HTTPS (production) or localhost for Secure Context
+ *  - WebAuthn with PRF extension (Chrome 130+ on Android with Google Password Manager)
  */
 
 export {
   isBiometricSupported,
   isBiometricEnabled,
+  isPrfCapable,
   registerBiometric,
   unlockWithBiometric,
   disableBiometric,
+  biometricSetupNeedsSecondPrompt,
 } from './webauthn';
 
 /**
@@ -39,8 +41,7 @@ export function isSecureBiometricEnvironment(): boolean {
 export function assertSecureBiometricEnvironment(): void {
   if (!isSecureBiometricEnvironment()) {
     throw new Error(
-      'Biometric unlock requires a secure context (HTTPS) and a browser ' +
-        'with WebAuthn support (Chrome 116+, Firefox 119+, Safari 17.4+).',
+      'Biometric unlock requires HTTPS (or localhost) and a browser with passkey support.',
     );
   }
 }

@@ -1,7 +1,22 @@
-import { db } from './db';
 import { CryptoWorkerClient } from './cryptoWorkerClient';
+import {
+  saveVaultCardRow,
+  markCardForDeletion,
+  hardDeleteCard,
+  upsertCardFromServer,
+  getPendingCards,
+  markCardAsSynced,
+} from './db';
+import { db } from './db';
 import type { CreditCardData, LocalVaultCard, PlainVaultCard } from '../types/vault';
 import { cardPayload, parseCardPayload } from '../types/vault';
+
+export {
+  getPendingCards,
+  markCardAsSynced,
+  hardDeleteCard,
+  upsertCardFromServer,
+};
 
 export async function getAllVaultCards(): Promise<LocalVaultCard[]> {
   return db.cards.orderBy('updated_at').reverse().toArray();
@@ -16,20 +31,18 @@ export async function saveVaultCard(
     cardPayload(card),
   );
   const now = new Date().toISOString();
-  const existing = await db.cards.get(card.id);
 
-  await db.cards.put({
+  await saveVaultCardRow({
     id: card.id,
     encrypted_title: encryptedTitle,
     encrypted_content: encryptedContent,
     iv,
     updated_at: now,
-    created_at: existing?.created_at ?? now,
   });
 }
 
 export async function deleteVaultCard(id: string): Promise<void> {
-  await db.cards.delete(id);
+  await markCardForDeletion(id);
 }
 
 export async function loadPlainVaultCards(): Promise<PlainVaultCard[]> {
@@ -38,6 +51,7 @@ export async function loadPlainVaultCards(): Promise<PlainVaultCard[]> {
   const cards: PlainVaultCard[] = [];
 
   for (const row of rows) {
+    if (row.sync_status === 'pending_delete') continue;
     try {
       const { title, content } = await crypto.decrypt(
         row.encrypted_title,

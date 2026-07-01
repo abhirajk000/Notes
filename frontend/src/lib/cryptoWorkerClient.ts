@@ -21,6 +21,7 @@ import type {
   WorkerResponse,
   EncryptResponse,
   DecryptResponse,
+  DecryptBatchResponse,
 } from '../types/crypto';
 
 type PendingCall = {
@@ -54,6 +55,11 @@ export class CryptoWorkerClient {
       CryptoWorkerClient.instance = new CryptoWorkerClient();
     }
     return CryptoWorkerClient.instance;
+  }
+
+  /** Eagerly spin up the worker so the first deriveKey is faster. */
+  static warmUp(): void {
+    CryptoWorkerClient.getInstance();
   }
 
   // ── Internal plumbing ────────────────────────────────────────
@@ -146,6 +152,21 @@ export class CryptoWorkerClient {
     })) as DecryptResponse;
 
     return response.payload;
+  }
+
+  /** Decrypt many notes/cards in one worker round-trip (parallel inside worker). */
+  async decryptBatch(
+    items: Array<{ encryptedTitle: string; encryptedContent: string; iv: string }>,
+  ): Promise<Array<{ title: string; content: string } | null>> {
+    if (items.length === 0) return [];
+
+    const response = (await this.send({
+      id: this.generateId(),
+      type: 'DECRYPT_BATCH',
+      payload: { items },
+    })) as DecryptBatchResponse;
+
+    return response.payload.results;
   }
 
   /**

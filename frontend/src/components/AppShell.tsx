@@ -30,9 +30,10 @@ interface AppShellProps {
   onEnableBiometric: (password: string) => Promise<void>;
   onSelectNote: (id: string) => void;
   onNewNote: () => void;
-  onSaveNote: (patch: { title: string; content: string; is_pinned: boolean }) => void;
+  onSaveNote: (patch: { title: string; content: string; is_pinned: boolean; is_locked: boolean }) => void;
   onDeleteNote: () => void;
   onTogglePin: () => void;
+  onToggleLock: () => void;
   onSelectCard: (id: string) => void;
   onAddCard: () => void;
   onSaveCard: (data: CreditCardData) => void;
@@ -61,6 +62,7 @@ export function AppShell({
   onSaveNote,
   onDeleteNote,
   onTogglePin,
+  onToggleLock,
   onSelectCard,
   onAddCard,
   onSaveCard,
@@ -265,6 +267,7 @@ export function AppShell({
             onSave={onSaveNote}
             onDelete={onDeleteNote}
             onTogglePin={onTogglePin}
+            onToggleLock={onToggleLock}
             isMobile={mobilePanel === 'editor'}
           />
         ) : (

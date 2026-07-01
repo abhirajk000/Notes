@@ -38,7 +38,7 @@ interface UseNotesReturn {
   /** Call after deriveKey — loads and decrypts all notes from IndexedDB. */
   loadNotes: () => Promise<void>;
   /** Encrypts, saves locally, then triggers a sync. */
-  saveNote: (draft: { id?: string; title: string; content: string; is_pinned?: boolean }) => Promise<string>;
+  saveNote: (draft: { id?: string; title: string; content: string; is_pinned?: boolean; is_locked?: boolean }) => Promise<string>;
   /** Marks for deletion locally, then triggers a sync. */
   deleteNote: (id: string) => Promise<void>;
   /** Toggle pinned status on a note. */
@@ -88,6 +88,7 @@ export function useNotes(options: UseNotesOptions = {}): UseNotesReturn {
             title,
             content,
             is_pinned: note.is_pinned,
+            is_locked: note.is_locked ?? false,
             updated_at: note.updated_at,
             created_at: note.created_at,
           });
@@ -108,6 +109,7 @@ export function useNotes(options: UseNotesOptions = {}): UseNotesReturn {
       title: string;
       content: string;
       is_pinned?: boolean;
+      is_locked?: boolean;
     }): Promise<string> => {
       const crypto = CryptoWorkerClient.getInstance();
       const noteId = draft.id ?? uuidv4();
@@ -124,6 +126,7 @@ export function useNotes(options: UseNotesOptions = {}): UseNotesReturn {
         encrypted_content: encryptedContent,
         iv,
         is_pinned: draft.is_pinned ?? false,
+        is_locked: draft.is_locked ?? false,
         updated_at: now,
       };
 
@@ -137,6 +140,7 @@ export function useNotes(options: UseNotesOptions = {}): UseNotesReturn {
           title: draft.title,
           content: draft.content,
           is_pinned: draft.is_pinned ?? false,
+          is_locked: draft.is_locked ?? false,
           updated_at: now,
           created_at: now,
         };
@@ -167,6 +171,7 @@ export function useNotes(options: UseNotesOptions = {}): UseNotesReturn {
         title: note.title,
         content: note.content,
         is_pinned: !note.is_pinned,
+        is_locked: note.is_locked,
       });
     },
     [notes, handleSaveNote],

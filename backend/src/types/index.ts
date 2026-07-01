@@ -17,6 +17,7 @@ export interface NoteRow {
   encrypted_content: string;
   iv: string;
   is_pinned: boolean;
+  is_locked: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -46,6 +47,7 @@ export interface SyncNoteItem {
   encrypted_content?: string;
   iv?: string;
   is_pinned?: boolean;
+  is_locked?: boolean;
   /**
    * ISO-8601 timestamp from the client. Used for Last-Write-Wins
    * conflict resolution: if the server's `updated_at` is newer,

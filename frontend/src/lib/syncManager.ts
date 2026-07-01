@@ -44,11 +44,22 @@
  * Reset to 2 s on the next successful pulse.
  */
 
-import { db, getPendingNotes, markAsSynced, hardDeleteNote, upsertFromServer } from './db';
+import {
+  db,
+  getPendingNotes,
+  getPendingCards,
+  markAsSynced,
+  markCardAsSynced,
+  hardDeleteNote,
+  hardDeleteCard,
+  upsertFromServer,
+  upsertCardFromServer,
+} from './db';
 import { CryptoWorkerClient } from './cryptoWorkerClient';
-import { notes as notesApi, ApiError } from './api';
-import type { LocalNote, SyncItem } from '../types/notes';
-import type { NoteMeta, SyncPayloadItem } from './api';
+import { notes as notesApi, vaultCards as vaultCardsApi, ApiError } from './api';
+import type { LocalNote } from '../types/notes';
+import type { LocalVaultCard } from '../types/vault';
+import type { NoteMeta, SyncPayloadItem, VaultCardSyncPayloadItem } from './api';
 
 // ── Public status shape ────────────────────────────────────────────
 
@@ -120,10 +131,7 @@ export class SyncManager {
     this.status.lastSyncedAt = localStorage.getItem(LAST_SYNC_KEY);
     window.addEventListener('online', this.boundOnline);
     window.addEventListener('offline', this.boundOffline);
-
-    if (navigator.onLine) {
-      void this.sync('initial');
-    }
+    // Sync is started explicitly after vault unlock — not here (avoids 401 before unlock).
   }
 
   static getInstance(): SyncManager {
@@ -179,24 +187,32 @@ export class SyncManager {
 
       // ── Phase 1: Fetch server metadata ──────────────────────
       this.emit({ phase: 'meta' });
-      const { notes: serverMeta } = await notesApi.meta();
-      const serverMap = new Map<string, NoteMeta>(serverMeta.map((m) => [m.id, m]));
+      const [{ notes: serverNoteMeta }, { cards: serverCardMeta }] = await Promise.all([
+        notesApi.meta(),
+        vaultCardsApi.meta(),
+      ]);
+      const serverNoteMap = new Map<string, NoteMeta>(serverNoteMeta.map((m) => [m.id, m]));
+      const serverCardMap = new Map<string, NoteMeta>(serverCardMeta.map((m) => [m.id, m]));
 
       // ── Phase 2: Reconcile inbound ──────────────────────────
       this.emit({ phase: 'inbound' });
-      inboundCount = await this.reconcileInbound(serverMap);
+      const inboundNotes = await this.reconcileNotesInbound(serverNoteMap);
+      const inboundCards = await this.reconcileCardsInbound(serverCardMap);
+      inboundCount = inboundNotes + inboundCards;
 
       // ── Phase 3: Flush outbound ─────────────────────────────
       this.emit({ phase: 'outbound' });
-      const outboundResult = await this.flushOutbound();
-      outboundCount = outboundResult.outboundCount;
-      conflictCount = outboundResult.conflictCount;
+      const noteOutbound = await this.flushNotesOutbound();
+      const cardOutbound = await this.flushCardsOutbound();
+      outboundCount = noteOutbound.outboundCount + cardOutbound.outboundCount;
+      conflictCount = noteOutbound.conflictCount + cardOutbound.conflictCount;
 
       // ── Phase 4: Acknowledge ─────────────────────────────────
       const now = new Date().toISOString();
       localStorage.setItem(LAST_SYNC_KEY, now);
 
-      const pendingCount = (await getPendingNotes()).length;
+      const pendingCount =
+        (await getPendingNotes()).length + (await getPendingCards()).length;
 
       this.retryDelay = 2_000; // reset back-off on success
 
@@ -235,7 +251,7 @@ export class SyncManager {
 
   // ── Phase 2: Reconcile inbound ────────────────────────────────
 
-  private async reconcileInbound(serverMap: Map<string, NoteMeta>): Promise<number> {
+  private async reconcileNotesInbound(serverMap: Map<string, NoteMeta>): Promise<number> {
     const localNotes = await db.notes.toArray();
     const localMap = new Map<string, LocalNote>(localNotes.map((n) => [n.id, n]));
 
@@ -304,6 +320,7 @@ export class SyncManager {
           encrypted_content: sn.encrypted_content,
           iv: sn.iv,
           is_pinned: sn.is_pinned,
+          is_locked: sn.is_locked ?? false,
           updated_at: sn.updated_at,
           created_at: sn.created_at,
         });
@@ -315,9 +332,62 @@ export class SyncManager {
     return downloaded;
   }
 
+  private async reconcileCardsInbound(serverMap: Map<string, NoteMeta>): Promise<number> {
+    const localCards = await db.cards.toArray();
+    const localMap = new Map<string, LocalVaultCard>(localCards.map((c) => [c.id, c]));
+
+    const toFetch: string[] = [];
+    const toDeleteLocally: string[] = [];
+
+    for (const [id, serverMeta] of serverMap) {
+      const local = localMap.get(id);
+
+      if (!local) {
+        toFetch.push(id);
+      } else if (local.sync_status === 'synced') {
+        const serverTime = new Date(serverMeta.updated_at).getTime();
+        const localTime = new Date(local.updated_at).getTime();
+        if (serverTime > localTime) {
+          toFetch.push(id);
+        }
+      }
+    }
+
+    for (const [id, local] of localMap) {
+      if (!serverMap.has(id) && local.sync_status === 'synced') {
+        toDeleteLocally.push(id);
+      }
+    }
+
+    await Promise.all(toDeleteLocally.map((id) => hardDeleteCard(id)));
+
+    if (toFetch.length === 0) return 0;
+
+    let downloaded = 0;
+
+    for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
+      const chunk = toFetch.slice(i, i + BATCH_SIZE);
+      const { cards: serverCards } = await vaultCardsApi.batch(chunk);
+
+      for (const sc of serverCards) {
+        await upsertCardFromServer({
+          id: sc.id,
+          encrypted_title: sc.encrypted_title,
+          encrypted_content: sc.encrypted_content,
+          iv: sc.iv,
+          updated_at: sc.updated_at,
+          created_at: sc.created_at,
+        });
+        downloaded++;
+      }
+    }
+
+    return downloaded;
+  }
+
   // ── Phase 3: Flush outbound ───────────────────────────────────
 
-  private async flushOutbound(): Promise<{ outboundCount: number; conflictCount: number }> {
+  private async flushNotesOutbound(): Promise<{ outboundCount: number; conflictCount: number }> {
     const pending = await getPendingNotes();
     if (pending.length === 0) return { outboundCount: 0, conflictCount: 0 };
 
@@ -331,6 +401,7 @@ export class SyncManager {
         encrypted_content: note.encrypted_content,
         iv: note.iv,
         is_pinned: note.is_pinned,
+        is_locked: note.is_locked ?? false,
         updated_at: note.updated_at,
         deleted: false,
       };
@@ -362,6 +433,7 @@ export class SyncManager {
           encrypted_content: sn.encrypted_content,
           iv: sn.iv,
           is_pinned: sn.is_pinned,
+          is_locked: sn.is_locked ?? false,
           updated_at: sn.updated_at,
           created_at: sn.created_at,
         }),
@@ -370,6 +442,57 @@ export class SyncManager {
 
     return {
       outboundCount: processedSet.size,
+      conflictCount: result.conflicts.length,
+    };
+  }
+
+  private async flushCardsOutbound(): Promise<{ outboundCount: number; conflictCount: number }> {
+    const pending = await getPendingCards();
+    if (pending.length === 0) return { outboundCount: 0, conflictCount: 0 };
+
+    const items: VaultCardSyncPayloadItem[] = pending.map((card) => {
+      if (card.sync_status === 'pending_delete') {
+        return { id: card.id, updated_at: card.updated_at, deleted: true };
+      }
+      return {
+        id: card.id,
+        encrypted_title: card.encrypted_title,
+        encrypted_content: card.encrypted_content,
+        iv: card.iv,
+        updated_at: card.updated_at,
+        deleted: false,
+      };
+    });
+
+    const result = await vaultCardsApi.sync(items);
+    const pendingMap = new Map(pending.map((c) => [c.id, c]));
+
+    await Promise.all(
+      result.processed.map(async (id) => {
+        const local = pendingMap.get(id);
+        if (local?.sync_status === 'pending_delete') {
+          await hardDeleteCard(id);
+        } else {
+          await markCardAsSynced(id);
+        }
+      }),
+    );
+
+    await Promise.all(
+      result.conflicts.map((sc) =>
+        upsertCardFromServer({
+          id: sc.id,
+          encrypted_title: sc.encrypted_title,
+          encrypted_content: sc.encrypted_content,
+          iv: sc.iv,
+          updated_at: sc.updated_at,
+          created_at: sc.created_at,
+        }),
+      ),
+    );
+
+    return {
+      outboundCount: result.processed.length,
       conflictCount: result.conflicts.length,
     };
   }

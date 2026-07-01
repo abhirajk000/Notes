@@ -6,11 +6,11 @@ import { Loader2, AlertCircle, Eye, EyeOff, Shield, Lock } from 'lucide-react';
 import { AppIcon } from '../../components/AppIcon';
 import { auth, ApiError } from '../../lib/api';
 import { VAULT_USERNAME } from '../../lib/config';
+import { CryptoWorkerClient } from '../../lib/cryptoWorkerClient';
 import {
   getStoredSession,
   saveStoredSession,
   stashPendingUnlock,
-  signOut,
 } from '../../lib/session';
 
 function formatApiError(err: ApiError): string {
@@ -29,14 +29,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    CryptoWorkerClient.warmUp();
+    router.prefetch('/notes');
+
     let cancelled = false;
 
     async function bootstrap() {
       try {
-        // Already signed in on server — go straight to vault
         const me = await auth.me();
         if (!cancelled) {
           const existing = getStoredSession();
@@ -50,19 +51,16 @@ export default function LoginPage() {
           return;
         }
       } catch {
-        // No valid server session — expected after sign-out
+        // No valid server session — show login form
       }
 
       try {
         const status = await auth.status();
         if (!cancelled) {
-          // Only show "Create Vault" when no account exists yet
           setIsRegister(!status.hasAccount);
         }
       } catch {
         if (!cancelled) setIsRegister(false);
-      } finally {
-        if (!cancelled) setReady(true);
       }
     }
 
@@ -76,6 +74,7 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    CryptoWorkerClient.warmUp();
 
     try {
       let result;
@@ -118,18 +117,6 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-
-  const handleReset = () => {
-    void signOut();
-  };
-
-  if (!ready) {
-    return (
-      <div className="min-h-dvh flex items-center justify-center login-bg">
-        <Loader2 size={24} className="animate-spin text-accent" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-dvh flex items-center justify-center p-4 sm:p-6 safe-all login-bg">
@@ -223,17 +210,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {!isRegister && (
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={isLoading}
-              className="w-full mt-4 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors py-2"
-            >
-              Reset app
-            </button>
-          )}
         </div>
 
         <p className="text-center text-[11px] text-gray-400 dark:text-gray-600 mt-6 tracking-wide">

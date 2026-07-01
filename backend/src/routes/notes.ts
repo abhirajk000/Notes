@@ -28,6 +28,7 @@ const syncItemSchema = z.object({
   encrypted_content: z.string().optional(),
   iv: ivSchema.optional(),
   is_pinned: z.boolean().optional(),
+  is_locked: z.boolean().optional(),
   updated_at: z.string().datetime({ message: 'updated_at must be a valid ISO-8601 datetime.' }),
 });
 
@@ -47,7 +48,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
   const result = await pool.query<NoteRow>(
     `SELECT id, user_id, encrypted_title, encrypted_content, iv,
-            is_pinned, created_at, updated_at
+            is_pinned, is_locked, created_at, updated_at
      FROM notes
      WHERE user_id = $1
      ORDER BY is_pinned DESC, updated_at DESC`,
@@ -113,19 +114,20 @@ router.post('/sync', async (req: Request, res: Response): Promise<void> => {
       const clientUpdatedAt = new Date(item.updated_at);
 
       const upsertResult = await client.query<NoteRow>(
-        `INSERT INTO notes (id, user_id, encrypted_title, encrypted_content, iv, is_pinned, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO notes (id, user_id, encrypted_title, encrypted_content, iv, is_pinned, is_locked, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (id) DO UPDATE
            SET encrypted_title   = EXCLUDED.encrypted_title,
                encrypted_content = EXCLUDED.encrypted_content,
                iv                = EXCLUDED.iv,
                is_pinned         = EXCLUDED.is_pinned,
+               is_locked         = EXCLUDED.is_locked,
                updated_at        = EXCLUDED.updated_at
            -- Last-Write-Wins: only update if client timestamp is newer
            WHERE notes.user_id = $2
              AND EXCLUDED.updated_at >= notes.updated_at
          RETURNING id, user_id, encrypted_title, encrypted_content, iv,
-                   is_pinned, created_at, updated_at`,
+                   is_pinned, is_locked, created_at, updated_at`,
         [
           item.id,
           userId,
@@ -133,6 +135,7 @@ router.post('/sync', async (req: Request, res: Response): Promise<void> => {
           item.encrypted_content,
           item.iv,
           item.is_pinned ?? false,
+          item.is_locked ?? false,
           clientUpdatedAt.toISOString(),
         ],
       );
@@ -144,7 +147,7 @@ router.post('/sync', async (req: Request, res: Response): Promise<void> => {
         // Return the current server copy so the client can update its local state.
         const serverRow = await client.query<NoteRow>(
           `SELECT id, user_id, encrypted_title, encrypted_content, iv,
-                  is_pinned, created_at, updated_at
+                  is_pinned, is_locked, created_at, updated_at
            FROM notes WHERE id = $1 AND user_id = $2 LIMIT 1`,
           [item.id, userId],
         );

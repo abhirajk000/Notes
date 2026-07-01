@@ -39,6 +39,18 @@ export interface DecryptRequest {
   };
 }
 
+export interface DecryptBatchRequest {
+  id: string;
+  type: 'DECRYPT_BATCH';
+  payload: {
+    items: Array<{
+      encryptedTitle: string;
+      encryptedContent: string;
+      iv: string;
+    }>;
+  };
+}
+
 /** Zero out the in-memory CryptoKey (on logout / session end) */
 export interface ClearKeyRequest {
   id: string;
@@ -49,6 +61,7 @@ export type WorkerRequest =
   | DeriveKeyRequest
   | EncryptRequest
   | DecryptRequest
+  | DecryptBatchRequest
   | ClearKeyRequest;
 
 // ── Outbound messages (worker → main thread) ──────────────────
@@ -80,6 +93,14 @@ export interface DecryptResponse {
   };
 }
 
+export interface DecryptBatchResponse {
+  id: string;
+  type: 'DECRYPT_BATCH_OK';
+  payload: {
+    results: Array<{ title: string; content: string } | null>;
+  };
+}
+
 export interface ClearKeyResponse {
   id: string;
   type: 'CLEAR_KEY_OK';
@@ -95,5 +116,6 @@ export type WorkerResponse =
   | DeriveKeyResponse
   | EncryptResponse
   | DecryptResponse
+  | DecryptBatchResponse
   | ClearKeyResponse
   | WorkerErrorResponse;

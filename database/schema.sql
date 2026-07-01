@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS notes (
     sync_status       TEXT        NOT NULL DEFAULT 'synced'
                       CHECK (sync_status IN ('synced')),
     is_pinned         BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_locked         BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -54,6 +55,31 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS set_updated_at ON notes;
 CREATE TRIGGER set_updated_at
     BEFORE UPDATE ON notes
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_set_updated_at();
+
+-- ── vault_cards ───────────────────────────────────────────────────
+-- Encrypted credit-card vault entries (same zero-knowledge model as notes).
+CREATE TABLE IF NOT EXISTS vault_cards (
+    id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    encrypted_title   TEXT        NOT NULL DEFAULT '',
+    encrypted_content TEXT        NOT NULL DEFAULT '',
+    iv                TEXT        NOT NULL,
+    sync_status       TEXT        NOT NULL DEFAULT 'synced'
+                      CHECK (sync_status IN ('synced')),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_vault_cards_user_updated
+    ON vault_cards (user_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_vault_cards_user_id ON vault_cards (user_id);
+
+DROP TRIGGER IF EXISTS set_updated_at ON vault_cards;
+CREATE TRIGGER set_updated_at
+    BEFORE UPDATE ON vault_cards
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_set_updated_at();
 

@@ -27,6 +27,22 @@ class NotesDatabase extends Dexie {
       notes: 'id, sync_status, updated_at, is_pinned',
       cards: 'id, updated_at',
     });
+
+    this.version(3).stores({
+      notes: 'id, sync_status, updated_at, is_pinned, is_locked',
+      cards: 'id, updated_at',
+    });
+
+    this.version(4).stores({
+      notes: 'id, sync_status, updated_at, is_pinned, is_locked',
+      cards: 'id, sync_status, updated_at',
+    }).upgrade(async (tx) => {
+      await tx.table('cards').toCollection().modify((card) => {
+        if (!card.sync_status) {
+          card.sync_status = 'pending_update';
+        }
+      });
+    });
   }
 }
 
@@ -99,4 +115,46 @@ export async function clearAllNotes(): Promise<void> {
 
 export async function clearAllCards(): Promise<void> {
   await db.cards.clear();
+}
+
+/** Returns vault cards not yet pushed to the backend. */
+export async function getPendingCards(): Promise<LocalVaultCard[]> {
+  return db.cards
+    .where('sync_status')
+    .anyOf(['pending_create', 'pending_update', 'pending_delete'] satisfies SyncStatus[])
+    .toArray();
+}
+
+/** Persists encrypted card locally and marks for server sync. */
+export async function saveVaultCardRow(
+  card: Omit<LocalVaultCard, 'sync_status' | 'created_at'>,
+): Promise<void> {
+  const existing = await db.cards.get(card.id);
+  const status: SyncStatus = existing ? 'pending_update' : 'pending_create';
+  await db.cards.put({
+    ...card,
+    created_at: existing?.created_at ?? card.updated_at,
+    sync_status: status,
+  });
+}
+
+export async function markCardForDeletion(id: string): Promise<void> {
+  await db.cards.update(id, {
+    sync_status: 'pending_delete' satisfies SyncStatus,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+export async function hardDeleteCard(id: string): Promise<void> {
+  await db.cards.delete(id);
+}
+
+export async function markCardAsSynced(id: string): Promise<void> {
+  await db.cards.update(id, { sync_status: 'synced' satisfies SyncStatus });
+}
+
+export async function upsertCardFromServer(
+  serverCard: Omit<LocalVaultCard, 'sync_status'>,
+): Promise<void> {
+  await db.cards.put({ ...serverCard, sync_status: 'synced' });
 }

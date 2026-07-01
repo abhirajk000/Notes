@@ -1,6 +1,6 @@
 'use client';
 
-import { Pin, FileText, Sparkles } from 'lucide-react';
+import { Pin, FileText, Sparkles, Lock } from 'lucide-react';
 import type { PlainNote } from '../types/notes';
 
 interface NoteListProps {
@@ -55,6 +55,9 @@ function NoteCard({
       </div>
 
       <div className="flex items-center gap-1.5">
+        {note.is_locked && (
+          <Lock size={10} className="text-amber-500 dark:text-amber-400 flex-shrink-0" />
+        )}
         {note.is_pinned && (
           <Pin size={10} className="text-accent flex-shrink-0 fill-accent/30" />
         )}

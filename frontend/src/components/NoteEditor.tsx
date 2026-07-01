@@ -6,19 +6,18 @@ import {
   useState,
   useCallback,
 } from 'react';
-import { Pin, Trash2, Clock, FileText } from 'lucide-react';
+import { Pin, Trash2, Clock, FileText, Lock, LockOpen } from 'lucide-react';
 import type { PlainNote } from '../types/notes';
 
 interface NoteEditorProps {
   note: PlainNote | null;
   isSaving: boolean;
-  onSave: (patch: { title: string; content: string; is_pinned: boolean }) => void;
+  onSave: (patch: { title: string; content: string; is_pinned: boolean; is_locked: boolean }) => void;
   onDelete: () => void;
   onTogglePin: () => void;
+  onToggleLock: () => void;
   isMobile?: boolean;
 }
-
-const DEBOUNCE_MS = 500;
 
 function formatLastSaved(iso: string): string {
   const d = new Date(iso);
@@ -29,17 +28,59 @@ function countWords(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
 
-export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin, isMobile = false }: NoteEditorProps) {
+export function NoteEditor({
+  note,
+  isSaving,
+  onSave,
+  onDelete,
+  onTogglePin,
+  onToggleLock,
+  isMobile = false,
+}: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDirtyRef = useRef(false);
+  const titleValueRef = useRef('');
+  const contentValueRef = useRef('');
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  const isLocked = note?.is_locked ?? false;
+
+  useEffect(() => {
+    titleValueRef.current = title;
+  }, [title]);
+
+  useEffect(() => {
+    contentValueRef.current = content;
+  }, [content]);
+
+  useEffect(() => {
+    const activeNote = note;
+    if (!activeNote || activeNote.is_locked) return;
+
+    return () => {
+      if (!isDirtyRef.current) return;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      onSave({
+        title: titleValueRef.current,
+        content: contentValueRef.current,
+        is_pinned: activeNote.is_pinned,
+        is_locked: activeNote.is_locked,
+      });
+      isDirtyRef.current = false;
+    };
+  }, [note?.id, onSave]);
 
   useEffect(() => {
     setTitle(note?.title ?? '');
     setContent(note?.content ?? '');
+    titleValueRef.current = note?.title ?? '';
+    contentValueRef.current = note?.content ?? '';
     isDirtyRef.current = false;
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -56,34 +97,41 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin, isMo
   useEffect(() => autoResize(titleRef.current), [title, autoResize]);
   useEffect(() => autoResize(contentRef.current), [content, autoResize]);
 
-  const scheduleSave = useCallback(
+  const saveNow = useCallback(
     (newTitle: string, newContent: string) => {
-      if (!note) return;
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-
-      debounceRef.current = setTimeout(() => {
-        onSave({ title: newTitle, content: newContent, is_pinned: note.is_pinned });
-        isDirtyRef.current = false;
+      if (!note || note.is_locked) return;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
         debounceRef.current = null;
-      }, DEBOUNCE_MS);
+      }
+      onSave({
+        title: newTitle,
+        content: newContent,
+        is_pinned: note.is_pinned,
+        is_locked: note.is_locked,
+      });
+      isDirtyRef.current = false;
     },
     [note, onSave],
   );
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isLocked) return;
     const v = e.target.value.replace(/\n/g, '');
     setTitle(v);
     isDirtyRef.current = true;
-    scheduleSave(v, content);
+    saveNow(v, content);
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isLocked) return;
     setContent(e.target.value);
     isDirtyRef.current = true;
-    scheduleSave(title, e.target.value);
+    saveNow(title, e.target.value);
   };
 
   const handleContentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isLocked) return;
     if (e.key === 'Tab') {
       e.preventDefault();
       const el = contentRef.current;
@@ -95,7 +143,7 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin, isMo
       requestAnimationFrame(() => {
         el.selectionStart = el.selectionEnd = start + 4;
       });
-      scheduleSave(title, next);
+      saveNow(title, next);
     }
   };
 
@@ -136,12 +184,27 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin, isMo
           <Clock size={12} className="flex-shrink-0" />
           {isSaving ? (
             <span className="text-accent truncate font-medium">Saving…</span>
+          ) : isLocked ? (
+            <span className="text-amber-600 dark:text-amber-400 truncate font-medium">Locked</span>
           ) : (
             <span className="truncate">{isMobile ? formatLastSaved(note.updated_at).replace('Saved at ', '') : formatLastSaved(note.updated_at)}</span>
           )}
-          <span className="mx-1 text-violet-200 dark:text-violet-800 hidden sm:inline">·</span>
-          <span className="hidden sm:inline whitespace-nowrap tabular-nums">{wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}</span>
+          {!isLocked && (
+            <>
+              <span className="mx-1 text-violet-200 dark:text-violet-800 hidden sm:inline">·</span>
+              <span className="hidden sm:inline whitespace-nowrap tabular-nums">{wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}</span>
+            </>
+          )}
         </div>
+
+        <ToolbarButton
+          onClick={onToggleLock}
+          active={isLocked}
+          title={isLocked ? 'Unlock note for editing' : 'Lock note (prevent accidental edits)'}
+          activeClass="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 shadow-soft-inset"
+        >
+          {isLocked ? <Lock size={15} className="fill-amber-400/30" /> : <LockOpen size={15} />}
+        </ToolbarButton>
 
         <ToolbarButton
           onClick={onTogglePin}
@@ -161,17 +224,25 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin, isMo
         </ToolbarButton>
       </div>
 
-      <div className="relative flex-1 overflow-y-auto mobile-scroll px-4 sm:px-10 md:px-16 lg:px-28 py-6 sm:py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+      {isLocked && (
+        <div className="relative flex items-center gap-2 px-4 sm:px-6 py-2.5 bg-amber-50/80 dark:bg-amber-950/20 border-b border-amber-200/50 dark:border-amber-900/30 text-xs text-amber-700 dark:text-amber-400">
+          <Lock size={12} className="flex-shrink-0" />
+          <span>This note is locked. Unlock to edit — delete is still available.</span>
+        </div>
+      )}
+
+      <div className={`relative flex-1 overflow-y-auto mobile-scroll px-4 sm:px-10 md:px-16 lg:px-28 py-6 sm:py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] ${isLocked ? 'select-text' : ''}`}>
         <textarea
           ref={titleRef}
           value={title}
           onChange={handleTitleChange}
           placeholder="Untitled"
           rows={1}
-          className="note-editor-title text-gray-900 dark:text-gray-50 placeholder-gray-300/80 dark:placeholder-zinc-600 mb-5 block"
+          readOnly={isLocked}
+          className={`note-editor-title text-gray-900 dark:text-gray-50 placeholder-gray-300/80 dark:placeholder-zinc-600 mb-5 block ${isLocked ? 'cursor-default opacity-90' : ''}`}
         />
 
-        <div className="w-12 h-px bg-gradient-to-r from-accent/40 to-transparent mb-7" />
+        <div className={`w-12 h-px bg-gradient-to-r mb-7 ${isLocked ? 'from-amber-400/40' : 'from-accent/40'} to-transparent`} />
 
         <textarea
           ref={contentRef}
@@ -180,7 +251,8 @@ export function NoteEditor({ note, isSaving, onSave, onDelete, onTogglePin, isMo
           onKeyDown={handleContentKeyDown}
           placeholder="Start writing…"
           rows={1}
-          className="note-editor-body text-gray-700 dark:text-gray-300 placeholder-gray-300/70 dark:placeholder-zinc-600 block"
+          readOnly={isLocked}
+          className={`note-editor-body text-gray-700 dark:text-gray-300 placeholder-gray-300/70 dark:placeholder-zinc-600 block ${isLocked ? 'cursor-default opacity-90' : ''}`}
         />
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   isSecureBiometricEnvironment,
   isBiometricSupported,
   isBiometricEnabled,
+  isPrfCapable,
   registerBiometric,
   unlockWithBiometric,
   disableBiometric,
@@ -34,8 +35,25 @@ export function useWebAuthn(): UseWebAuthnReturn {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsSupported(isSecureBiometricEnvironment() && isBiometricSupported());
+    let cancelled = false;
+
+    async function probe() {
+      const basic =
+        isSecureBiometricEnvironment() && isBiometricSupported();
+      if (!basic) {
+        if (!cancelled) setIsSupported(false);
+        return;
+      }
+      const prf = await isPrfCapable();
+      if (!cancelled) setIsSupported(prf);
+    }
+
     setIsEnabled(isBiometricEnabled());
+    void probe();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const enable = useCallback(async (username: string, password: string) => {

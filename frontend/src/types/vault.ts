@@ -1,3 +1,5 @@
+import type { SyncStatus } from './notes';
+
 export interface CreditCardData {
   cardName: string;
   cardHolder: string;
@@ -12,8 +14,19 @@ export interface LocalVaultCard {
   encrypted_title: string;
   encrypted_content: string;
   iv: string;
+  sync_status: SyncStatus;
   updated_at: string;
   created_at: string;
+}
+
+/** Server vault card payload (ciphertext only). */
+export interface ServerVaultCard {
+  id: string;
+  encrypted_title: string;
+  encrypted_content: string;
+  iv: string;
+  created_at: string;
+  updated_at: string;
 }
 
 /** Decrypted card kept in React state only. */

@@ -8,14 +8,16 @@ import {
 } from 'react';
 import { Fingerprint, Eye, EyeOff, AlertCircle, Loader2, Shield } from 'lucide-react';
 import { AppIcon } from './AppIcon';
+import { biometricSetupNeedsSecondPrompt } from '../lib/biometrics';
 
 interface LockScreenProps {
   isBiometricEnabled: boolean;
   isBiometricSupported: boolean;
   onUnlock: (password: string) => Promise<void>;
   onBiometricUnlock: () => Promise<string>;
-  onSignOut?: () => void;
   isVisible: boolean;
+  isUnlocking?: boolean;
+  unlockError?: string | null;
 }
 
 type LockMode = 'biometric' | 'password';
@@ -26,8 +28,9 @@ export function LockScreen({
   isBiometricSupported,
   onUnlock,
   onBiometricUnlock,
-  onSignOut,
   isVisible,
+  isUnlocking = false,
+  unlockError = null,
 }: LockScreenProps) {
   const [mode, setMode] = useState<LockMode>(
     isBiometricEnabled && isBiometricSupported ? 'biometric' : 'password',
@@ -45,7 +48,15 @@ export function LockScreen({
   }, [mode]);
 
   useEffect(() => {
-    if (isVisible && isBiometricEnabled && isBiometricSupported) {
+    if (unlockError) {
+      setError(unlockError);
+      setUnlockState('error');
+      setMode('password');
+    }
+  }, [unlockError]);
+
+  useEffect(() => {
+    if (isVisible && isBiometricEnabled && isBiometricSupported && !isUnlocking) {
       void handleBiometricUnlock();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -123,14 +134,21 @@ export function LockScreen({
           </div>
 
           <div className="px-8 py-7">
-            {error && (
+            {isUnlocking && (
+              <div className="flex items-center justify-center gap-2.5 mb-5 py-3 text-sm text-accent font-medium">
+                <Loader2 size={16} className="animate-spin flex-shrink-0" />
+                Deriving encryption key…
+              </div>
+            )}
+
+            {error && !isUnlocking && (
               <div className="flex items-start gap-2.5 mb-5 p-3.5 bg-red-50/80 dark:bg-red-900/20 border border-red-200/60 dark:border-red-800/40 rounded-2xl text-sm text-red-700 dark:text-red-400 animate-slide-up">
                 <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
                 <p className="leading-snug">{error}</p>
               </div>
             )}
 
-            {mode === 'biometric' && (
+            {mode === 'biometric' && !isUnlocking && (
               <div className="flex flex-col items-center gap-5">
                 <p className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed">
                   Use Touch ID, Face ID, or your device PIN to unlock.
@@ -172,7 +190,7 @@ export function LockScreen({
               </div>
             )}
 
-            {mode === 'password' && (
+            {mode === 'password' && !isUnlocking && (
               <form onSubmit={handlePasswordUnlock} className="flex flex-col gap-5">
                 <div>
                   <label className="block text-[11px] font-semibold tracking-[0.1em] text-gray-500 dark:text-gray-400 mb-2.5 uppercase">
@@ -228,18 +246,6 @@ export function LockScreen({
               </form>
             )}
           </div>
-
-          <div className="px-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex justify-center">
-            {onSignOut && (
-              <button
-                type="button"
-                onClick={onSignOut}
-                className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors py-2"
-              >
-                Reset app
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>
@@ -280,8 +286,15 @@ export function BiometricSetup({ onEnable, onDismiss }: BiometricSetupProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-        Enter your master password once to enable biometric unlock. Your password will be securely wrapped by the device's secure enclave.
+        Enter your master password once to enable passkey unlock. Your password is wrapped
+        using the device secure enclave — it never leaves this device.
       </p>
+      {biometricSetupNeedsSecondPrompt() && (
+        <p className="text-xs text-gray-500 dark:text-gray-500 leading-relaxed bg-violet-50/80 dark:bg-violet-950/30 rounded-xl px-3 py-2 border border-violet-100/60 dark:border-violet-800/25">
+          On Android you may see two passkey prompts — create, then confirm. Use Chrome 130+
+          with Google Password Manager.
+        </p>
+      )}
       {error && (
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       )}

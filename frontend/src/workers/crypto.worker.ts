@@ -23,6 +23,7 @@ import type {
   DeriveKeyRequest,
   EncryptRequest,
   DecryptRequest,
+  DecryptBatchRequest,
 } from '../types/crypto';
 
 // ── Module-level key storage ───────────────────────────────────
@@ -140,39 +141,58 @@ async function handleEncrypt(req: EncryptRequest): Promise<void> {
 
 // ── Decryption ─────────────────────────────────────────────────
 
-async function handleDecrypt(req: DecryptRequest): Promise<void> {
+async function decryptFields(
+  encryptedTitle: string,
+  encryptedContent: string,
+  iv: string,
+): Promise<{ title: string; content: string }> {
   if (!encryptionKey) {
-    post({ id: req.id, type: 'ERROR', error: 'No encryption key derived. Call DERIVE_KEY first.' });
-    return;
+    throw new Error('No encryption key derived. Call DERIVE_KEY first.');
   }
-
-  const { encryptedTitle, encryptedContent, iv } = req.payload;
 
   const ivBytes = base64Decode(iv);
   const decoder = new TextDecoder();
 
-  let plainTitle: string;
-  let plainContent: string;
+  const [rawTitle, rawContent] = await Promise.all([
+    crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, encryptionKey, base64Decode(encryptedTitle)),
+    crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, encryptionKey, base64Decode(encryptedContent)),
+  ]);
 
+  return {
+    title: decoder.decode(rawTitle),
+    content: decoder.decode(rawContent),
+  };
+}
+
+async function handleDecrypt(req: DecryptRequest): Promise<void> {
   try {
-    const [rawTitle, rawContent] = await Promise.all([
-      crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, encryptionKey, base64Decode(encryptedTitle)),
-      crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, encryptionKey, base64Decode(encryptedContent)),
-    ]);
-
-    plainTitle = decoder.decode(rawTitle);
-    plainContent = decoder.decode(rawContent);
+    const payload = await decryptFields(
+      req.payload.encryptedTitle,
+      req.payload.encryptedContent,
+      req.payload.iv,
+    );
+    post({ id: req.id, type: 'DECRYPT_OK', payload });
   } catch {
-    // AES-GCM authentication tag failure — ciphertext has been tampered
-    post({ id: req.id, type: 'ERROR', error: 'Decryption failed: authentication tag mismatch. Data may be corrupt or tampered.' });
-    return;
+    post({
+      id: req.id,
+      type: 'ERROR',
+      error: 'Decryption failed: authentication tag mismatch. Data may be corrupt or tampered.',
+    });
   }
+}
 
-  post({
-    id: req.id,
-    type: 'DECRYPT_OK',
-    payload: { title: plainTitle, content: plainContent },
-  });
+async function handleDecryptBatch(req: DecryptBatchRequest): Promise<void> {
+  const results = await Promise.all(
+    req.payload.items.map(async (item) => {
+      try {
+        return await decryptFields(item.encryptedTitle, item.encryptedContent, item.iv);
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  post({ id: req.id, type: 'DECRYPT_BATCH_OK', payload: { results } });
 }
 
 // ── Clear Key ──────────────────────────────────────────────────
@@ -197,6 +217,9 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
         break;
       case 'DECRYPT':
         await handleDecrypt(req);
+        break;
+      case 'DECRYPT_BATCH':
+        await handleDecryptBatch(req);
         break;
       case 'CLEAR_KEY':
         handleClearKey(req.id);

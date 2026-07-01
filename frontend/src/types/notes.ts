@@ -12,6 +12,7 @@ export interface LocalNote {
   /** Base64-encoded 12-byte AES-GCM IV */
   iv: string;
   is_pinned: boolean;
+  is_locked: boolean;
   sync_status: SyncStatus;
   /** ISO-8601 string — used for Last-Write-Wins conflict resolution */
   updated_at: string;
@@ -25,6 +26,7 @@ export interface PlainNote {
   title: string;
   content: string;
   is_pinned: boolean;
+  is_locked: boolean;
   updated_at: string;
   created_at: string;
 }
@@ -39,6 +41,7 @@ export interface ServerNote {
   iv: string;
   sync_status?: string;
   is_pinned: boolean;
+  is_locked: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +55,7 @@ export interface SyncItem {
   encrypted_content?: string;
   iv?: string;
   is_pinned?: boolean;
+  is_locked?: boolean;
   updated_at: string;
 }
 
